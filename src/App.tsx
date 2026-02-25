@@ -69,16 +69,7 @@ const PublicRoute = ({ children }: { children: React.ReactNode }) => {
 };
 
 const AppContent = () => {
-  const [showSplash, setShowSplash] = useState(() => {
-    // Check if splash was already shown in this session
-    const wasSplashShown = sessionStorage.getItem("splashShown");
-
-    // If it's an auth redirect or already shown, skip splash
-    if (isAuthRedirect() || wasSplashShown) {
-      return false;
-    }
-    return true;
-  });
+  const [showSplash, setShowSplash] = useState(false);
 
   const handleSplashFinish = () => {
     setShowSplash(false);
