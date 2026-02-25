@@ -40,9 +40,23 @@ const LoadingScreen = () => (
   </div>
 );
 
+const isAuthRedirect = () => {
+  return window.location.hash.includes("access_token=") ||
+    window.location.hash.includes("type=recovery") ||
+    window.location.search.includes("code=");
+};
+
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, loading } = useAuth();
-  if (loading) return <LoadingScreen />;
+  const [isAuthProcessing, setIsAuthProcessing] = useState(isAuthRedirect());
+
+  useEffect(() => {
+    if (!loading) {
+      setIsAuthProcessing(false);
+    }
+  }, [loading]);
+
+  if (loading || isAuthProcessing) return <LoadingScreen />;
   if (!user) return <Navigate to="/login" replace />;
   return <>{children}</>;
 };
@@ -56,16 +70,11 @@ const PublicRoute = ({ children }: { children: React.ReactNode }) => {
 
 const AppContent = () => {
   const [showSplash, setShowSplash] = useState(() => {
-    // Check if we're returning from an OAuth redirect
-    const isAuthRedirect = window.location.hash.includes("access_token=") ||
-      window.location.hash.includes("type=recovery") ||
-      window.location.search.includes("code=");
-
     // Check if splash was already shown in this session
     const wasSplashShown = sessionStorage.getItem("splashShown");
 
     // If it's an auth redirect or already shown, skip splash
-    if (isAuthRedirect || wasSplashShown) {
+    if (isAuthRedirect() || wasSplashShown) {
       return false;
     }
     return true;
