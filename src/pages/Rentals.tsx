@@ -42,11 +42,54 @@ const Rentals = () => {
 
     useEffect(() => {
         const fetchData = async () => {
-            const { data: vData } = await (supabase as any).from("vehicles").select("*");
-            if (vData) setVehicles(vData);
+            try {
+                const { data: vData } = await (supabase as any).from("vehicles").select("*");
+                if (vData && vData.length > 0) {
+                    setVehicles(vData);
+                } else {
+                    // Fallback vehicles
+                    setVehicles([
+                        { id: "v1", name: "Bestune T55", category: "T-Series", image: taxiSedan, rating: 4.8 },
+                        { id: "v2", name: "Bestune T77", category: "T-Series", image: taxiSuv, rating: 4.9 },
+                        { id: "v3", name: "Nissan Kicks", category: "Kicks", image: taxiVan, rating: 4.7 }
+                    ]);
+                }
 
-            const { data: pData } = await (supabase as any).from("app_settings").select("*").eq("key", "rental_pricing").single();
-            if (pData) setPricing(pData.value);
+                const { data: pData } = await (supabase as any).from("app_settings").select("*").eq("key", "rental_pricing").single();
+                if (pData) {
+                    setPricing(pData.value);
+                } else {
+                    // Fallback pricing
+                    setPricing({
+                        t_series: {
+                            abidjan: { base: 45000, long_term: 40000 },
+                            interior: { base: 50000, long_term: 45000, high_km: 60000 }
+                        },
+                        kicks: {
+                            abidjan: { base: 35000, long_term: 30000 },
+                            interior: { base: 40000, long_term: 35000, high_km: 45000 }
+                        }
+                    });
+                }
+            } catch (error) {
+                console.error("Error fetching rental data:", error);
+                // Set fallback data anyway
+                setVehicles([
+                    { id: "v1", name: "Bestune T55", category: "T-Series", image: taxiSedan, rating: 4.8 },
+                    { id: "v2", name: "Bestune T77", category: "T-Series", image: taxiSuv, rating: 4.9 },
+                    { id: "v3", name: "Nissan Kicks", category: "Kicks", image: taxiVan, rating: 4.7 }
+                ]);
+                setPricing({
+                    t_series: {
+                        abidjan: { base: 45000, long_term: 40000 },
+                        interior: { base: 50000, long_term: 45000, high_km: 60000 }
+                    },
+                    kicks: {
+                        abidjan: { base: 35000, long_term: 30000 },
+                        interior: { base: 40000, long_term: 35000, high_km: 45000 }
+                    }
+                });
+            }
         };
         fetchData();
     }, []);

@@ -49,11 +49,42 @@ const RideBooking = () => {
 
     useEffect(() => {
         const fetchData = async () => {
-            const { data: vData } = await (supabase as any).from("vehicles").select("*");
-            if (vData) setVehicles(vData);
+            try {
+                const { data: vData } = await (supabase as any).from("vehicles").select("*");
+                if (vData && vData.length > 0) {
+                    setVehicles(vData);
+                } else {
+                    // Fallback vehicles
+                    setVehicles([
+                        { id: "v1", name: "Bestune T55", category: "T-Series", image: taxiSedan, rating: 4.8 },
+                        { id: "v2", name: "Bestune T77", category: "T-Series", image: taxiSuv, rating: 4.9 },
+                        { id: "v3", name: "Nissan Kicks", category: "Kicks", image: taxiVan, rating: 4.7 }
+                    ]);
+                }
 
-            const { data: pData } = await (supabase as any).from("app_settings").select("*").eq("key", "hourly_pricing").single();
-            if (pData) setPricing(pData.value);
+                const { data: pData } = await (supabase as any).from("app_settings").select("*").eq("key", "hourly_pricing").single();
+                if (pData) {
+                    setPricing(pData.value);
+                } else {
+                    // Fallback pricing
+                    setPricing({
+                        t_series: { first_hour: 15000, additional_hour: 7000 },
+                        kicks: { first_hour: 10000, additional_hour: 7000 }
+                    });
+                }
+            } catch (error) {
+                console.error("Error fetching ride booking data:", error);
+                // Set fallback data anyway on error
+                setVehicles([
+                    { id: "v1", name: "Bestune T55", category: "T-Series", image: taxiSedan, rating: 4.8 },
+                    { id: "v2", name: "Bestune T77", category: "T-Series", image: taxiSuv, rating: 4.9 },
+                    { id: "v3", name: "Nissan Kicks", category: "Kicks", image: taxiVan, rating: 4.7 }
+                ]);
+                setPricing({
+                    t_series: { first_hour: 15000, additional_hour: 7000 },
+                    kicks: { first_hour: 10000, additional_hour: 7000 }
+                });
+            }
         };
         fetchData();
     }, []);

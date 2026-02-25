@@ -52,26 +52,53 @@ const Booking = () => {
   // Fetch all dynamic data
   useEffect(() => {
     const fetchPricing = async () => {
-      // 1. Fetch Communes
-      const { data: communesData } = await (supabase as any).from("communes").select("*").order("display_order");
-      if (communesData) {
-        setCommunes(communesData);
-        if (!pickup) setPickup(communesData[0]?.name);
-        if (!destination && !incomingDestination) setDestination(communesData[6]?.name || "");
-      }
+      try {
+        // 1. Fetch Communes
+        const { data: communesData } = await (supabase as any).from("communes").select("*").order("display_order");
+        if (communesData && communesData.length > 0) {
+          setCommunes(communesData);
+          if (!pickup) setPickup(communesData[0]?.name);
+          if (!destination && !incomingDestination) setDestination(communesData[6]?.name || "");
+        } else {
+          // Fallback communes
+          const fallbackCommunes = [
+            { id: "c1", name: "Aéroport Félix Houphouët-Boigny", zone_letter: null, airport_price: 0 },
+            { id: "c2", name: "Marcory", zone_letter: "A", airport_price: 7500 },
+            { id: "c3", name: "Cocody", zone_letter: "A", airport_price: 10000 },
+            { id: "c4", name: "Yopougon", zone_letter: "C", airport_price: 15000 },
+            { id: "c5", name: "Plateau", zone_letter: "A", airport_price: 10000 },
+            { id: "c6", name: "Koumassi", zone_letter: "A", airport_price: 7500 },
+            { id: "c7", name: "Port-Bouët", zone_letter: "A", airport_price: 7500 }
+          ];
+          setCommunes(fallbackCommunes);
+          if (!pickup) setPickup(fallbackCommunes[0].name);
+          if (!destination && !incomingDestination) setDestination(fallbackCommunes[2].name);
+        }
 
-      // 2. Fetch Zone Pricing
-      const { data: zonesData } = await (supabase as any).from("zone_pricing").select("*");
-      if (zonesData) {
-        const rates: Record<string, number> = {};
-        zonesData.forEach((z: any) => rates[z.zone_letter] = z.price);
-        setZoneRates(rates);
-      }
+        // 2. Fetch Zone Pricing
+        const { data: zonesData } = await (supabase as any).from("zone_pricing").select("*");
+        if (zonesData && zonesData.length > 0) {
+          const rates: Record<string, number> = {};
+          zonesData.forEach((z: any) => rates[z.zone_letter] = z.price);
+          setZoneRates(rates);
+        } else {
+          setZoneRates({ "A": 8000, "B": 12000, "C": 15000, "D": 20000 });
+        }
 
-      // 3. Fetch Settings
-      const { data: settingsData } = await (supabase as any).from("app_settings").select("*").eq("key", "airport_config").single();
-      if (settingsData) {
-        setAirportHub(settingsData.value.hub_name);
+        // 3. Fetch Settings
+        const { data: settingsData } = await (supabase as any).from("app_settings").select("*").eq("key", "airport_config").single();
+        if (settingsData) {
+          setAirportHub(settingsData.value.hub_name);
+        }
+      } catch (error) {
+        console.error("Error fetching booking pricing:", error);
+        // Fallback on error
+        setCommunes([
+          { id: "c1", name: "Aéroport Félix Houphouët-Boigny", zone_letter: null, airport_price: 0 },
+          { id: "c2", name: "Marcory", zone_letter: "A", airport_price: 7500 },
+          { id: "c3", name: "Cocody", zone_letter: "A", airport_price: 10000 }
+        ]);
+        setZoneRates({ "A": 8000, "B": 12000, "C": 15000, "D": 20000 });
       }
     };
 
