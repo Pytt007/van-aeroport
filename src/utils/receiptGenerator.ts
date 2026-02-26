@@ -1,7 +1,21 @@
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 
-export const generateReceiptPDF = async (receiptId: string, data: any) => {
+interface ReceiptData {
+    fullName?: string;
+    phone?: string;
+    vehicleName?: string;
+    pickup?: string;
+    destination?: string;
+    date?: string;
+    startDate?: string;
+    startTime?: string;
+    hours?: number;
+    days?: number;
+    total: number | string;
+}
+
+export const generateReceiptPDF = async (receiptId: string, data: ReceiptData) => {
     // Create a temporary element to render the receipt
     const element = document.createElement("div");
     element.style.padding = "40px";

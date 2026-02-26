@@ -68,6 +68,16 @@ const locations = [
   "Yopougon"
 ];
 
+interface Vehicle {
+  name: string;
+  image?: string;
+  image_url?: string;
+  rating: number;
+  speed: string;
+  seats: string;
+  engine: string;
+}
+
 const Index = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -90,17 +100,17 @@ const Index = () => {
 
   const displayName = profile?.full_name?.split(" ")[0] || user?.email?.split("@")[0] || "Voyageur";
 
-  const [vehicles, setVehicles] = useState<any[]>([]);
+  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
 
   useEffect(() => {
-    (supabase as any)
+    supabase
       .from("vehicles")
       .select("*")
       .order("rating", { ascending: false })
       .limit(3)
-      .then(({ data }: any) => {
+      .then(({ data }) => {
         if (data && data.length > 0) {
-          setVehicles(data);
+          setVehicles(data as Vehicle[]);
         }
       });
   }, []);

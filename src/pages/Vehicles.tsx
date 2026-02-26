@@ -40,6 +40,17 @@ export const vehicles = [
 
 const FAVORITES_KEY = "vtc_favorites";
 
+interface Vehicle {
+  name: string;
+  image?: string;
+  image_url?: string;
+  rating: number;
+  speed: string;
+  seats: string;
+  engine: string;
+  id?: string;
+}
+
 const Vehicles = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -57,7 +68,7 @@ const Vehicles = () => {
     localStorage.setItem(FAVORITES_KEY, JSON.stringify([...favorites]));
   }, [favorites]);
 
-  const [dynamicVehicles, setDynamicVehicles] = useState<any[]>([]);
+  const [dynamicVehicles, setDynamicVehicles] = useState<Vehicle[]>([]);
 
   useEffect(() => {
     supabase
@@ -84,7 +95,7 @@ const Vehicles = () => {
       });
   }, []);
 
-  const displayVehicles = dynamicVehicles.length > 0 ? dynamicVehicles : (vehicles as any[]);
+  const displayVehicles = dynamicVehicles.length > 0 ? dynamicVehicles : (vehicles as Vehicle[]);
 
   const toggleFavorite = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();

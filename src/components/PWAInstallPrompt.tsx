@@ -16,8 +16,7 @@ const PWAInstallPrompt = () => {
         if (location.pathname !== "/") return;
 
         // 2. Check if already installed
-        // @ts-ignore
-        const isStandalone = window.navigator.standalone || window.matchMedia('(display-mode: standalone)').matches;
+        const isStandalone = (window.navigator as { standalone?: boolean }).standalone || window.matchMedia('(display-mode: standalone)').matches;
         if (isStandalone) return;
 
         // 3. Check if shown in this session
