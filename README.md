@@ -23,12 +23,3 @@ Votre service de VTC aéroport de Côte d'Ivoire.
    ```
 4. **Lancer le serveur** : `npm run dev`
 
-## Déploiement Netlify
-
-Ce projet est prêt pour Netlify grâce au fichier `netlify.toml` inclus.
-
-**Variables d'environnement requises sur Netlify :**
-- `VITE_SUPABASE_URL`
-- `VITE_SUPABASE_PUBLISHABLE_KEY`
-
-Assurez-vous de configurer ces variables dans l'interface de Netlify (Site settings > Environment variables) avant de déployer.
