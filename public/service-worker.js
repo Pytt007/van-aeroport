@@ -1,24 +1,26 @@
-const CACHE_NAME = 'vanaeroport-v1';
-const ASSETS_TO_CACHE = [
-    '/',
-    '/index.html',
-    '/manifest.webmanifest',
-    '/Logo.png',
-    '/favicon.ico'
-];
-
-self.addEventListener('install', (event) => {
-    event.waitUntil(
-        caches.open(CACHE_NAME).then((cache) => {
-            return cache.addAll(ASSETS_TO_CACHE);
-        })
-    );
+// Self-unregistering service worker — clears old Netlify/Vercel cache issues
+self.addEventListener('install', () => {
+    self.skipWaiting();
 });
 
-self.addEventListener('fetch', (event) => {
-    event.respondWith(
-        caches.match(event.request).then((response) => {
-            return response || fetch(event.request);
+self.addEventListener('activate', (event) => {
+    event.waitUntil(
+        // Delete all existing caches to fix stale asset issues
+        caches.keys().then((cacheNames) => {
+            return Promise.all(
+                cacheNames.map((cacheName) => caches.delete(cacheName))
+            );
+        }).then(() => {
+            // Unregister this SW and take control so the page reloads cleanly
+            return self.registration.unregister();
+        }).then(() => {
+            return self.clients.matchAll();
+        }).then((clients) => {
+            clients.forEach((client) => {
+                if (client.url && 'navigate' in client) {
+                    client.navigate(client.url);
+                }
+            });
         })
     );
 });
