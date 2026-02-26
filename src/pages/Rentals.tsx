@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from "framer-motion";
-import { Star, MapPin, Calendar, Clock, User, Phone, Mail, ChevronRight, CheckCircle2, AlertCircle, MessageCircle, ArrowLeft, Info, Gauge } from "lucide-react";
+import { Star, MapPin, Calendar, Clock, User, Phone, Mail, ChevronRight, CheckCircle2, AlertCircle, MessageCircle, ArrowLeft, Info, Gauge, Home as HomeIcon, Briefcase } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useState, useEffect, useMemo } from "react";
 import MobileLayout, { PageTransition } from "@/components/MobileLayout";
@@ -18,10 +18,15 @@ import {
     DrawerClose,
     DrawerContent,
     DrawerDescription,
+    DrawerFooter,
     DrawerHeader,
     DrawerTitle,
     DrawerTrigger,
 } from "@/components/ui/drawer";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
+import ClockPicker from "@/components/ClockPicker";
+import { format } from "date-fns";
+import { fr } from "date-fns/locale";
 import taxiSedan from "@/assets/taxi-sedan.png";
 import taxiSuv from "@/assets/taxi-suv.png";
 import taxiVan from "@/assets/taxi-van.png";
@@ -45,13 +50,28 @@ const Rentals = () => {
             try {
                 const { data: vData } = await (supabase as any).from("vehicles").select("*");
                 if (vData && vData.length > 0) {
-                    setVehicles(vData);
+                    const mappedVehicles = vData.map((v: any) => {
+                        const localImg = v.name === "Bestune T55" ? taxiSedan :
+                            v.name === "Bestune T77" ? taxiSuv :
+                                v.name === "Nissan Kicks" ? taxiVan : null;
+
+                        const isPlaceholder = v.image_url && (
+                            v.image_url.includes("votre-bucket.supabase.co") ||
+                            v.image_url.includes("placeholder")
+                        );
+
+                        return {
+                            ...v,
+                            image_url: isPlaceholder ? (localImg || v.image_url) : (v.image_url || localImg)
+                        };
+                    });
+                    setVehicles(mappedVehicles);
                 } else {
                     // Fallback vehicles
                     setVehicles([
-                        { id: "v1", name: "Bestune T55", category: "T-Series", image: taxiSedan, rating: 4.8 },
-                        { id: "v2", name: "Bestune T77", category: "T-Series", image: taxiSuv, rating: 4.9 },
-                        { id: "v3", name: "Nissan Kicks", category: "Kicks", image: taxiVan, rating: 4.7 }
+                        { id: "v1", name: "Bestune T55", category: "T-Series", image_url: taxiSedan, rating: 4.8 },
+                        { id: "v2", name: "Bestune T77", category: "T-Series", image_url: taxiSuv, rating: 4.9 },
+                        { id: "v3", name: "Nissan Kicks", category: "Kicks", image_url: taxiVan, rating: 4.7 }
                     ]);
                 }
 
@@ -61,38 +81,34 @@ const Rentals = () => {
                 } else {
                     // Fallback pricing
                     setPricing({
-                        t_series: {
-                            abidjan: { base: 45000, long_term: 40000 },
-                            interior: { base: 50000, long_term: 45000, high_km: 60000 }
-                        },
-                        kicks: {
-                            abidjan: { base: 35000, long_term: 30000 },
-                            interior: { base: 40000, long_term: 35000, high_km: 45000 }
-                        }
+                        abidjan: { day_price: 60000, half_day_price: 40000 },
+                        interieur: { day_price: 85000, half_day_price: 55000 }
                     });
                 }
             } catch (error) {
                 console.error("Error fetching rental data:", error);
                 // Set fallback data anyway
                 setVehicles([
-                    { id: "v1", name: "Bestune T55", category: "T-Series", image: taxiSedan, rating: 4.8 },
-                    { id: "v2", name: "Bestune T77", category: "T-Series", image: taxiSuv, rating: 4.9 },
-                    { id: "v3", name: "Nissan Kicks", category: "Kicks", image: taxiVan, rating: 4.7 }
+                    { id: "v1", name: "Bestune T55", category: "T-Series", image_url: taxiSedan, rating: 4.8, created_at: "", engine: null, is_available: true, seats: null, speed: null },
+                    { id: "v2", name: "Bestune T77", category: "T-Series", image_url: taxiSuv, rating: 4.9, created_at: "", engine: null, is_available: true, seats: null, speed: null },
+                    { id: "v3", name: "Nissan Kicks", category: "Kicks", image_url: taxiVan, rating: 4.7, created_at: "", engine: null, is_available: true, seats: null, speed: null }
                 ]);
                 setPricing({
-                    t_series: {
-                        abidjan: { base: 45000, long_term: 40000 },
-                        interior: { base: 50000, long_term: 45000, high_km: 60000 }
-                    },
-                    kicks: {
-                        abidjan: { base: 35000, long_term: 30000 },
-                        interior: { base: 40000, long_term: 35000, high_km: 45000 }
-                    }
+                    abidjan: { day_price: 60000, half_day_price: 40000 },
+                    interieur: { day_price: 85000, half_day_price: 55000 }
                 });
             }
         };
         fetchData();
     }, []);
+
+    const getAddressIcon = (type: string) => {
+        switch (type) {
+            case 'home': return HomeIcon;
+            case 'work': return Briefcase;
+            default: return MapPin;
+        }
+    };
 
     // Form State
     const [formData, setFormData] = useState({
@@ -100,12 +116,14 @@ const Rentals = () => {
         fullName: "",
         phone: "",
         email: user?.email || "",
-        zone: "Abidjan",
         startDate: "",
-        startTime: "08:00",
         endDate: "",
-        endTime: "08:00",
-        kilometers: "",
+        startTime: "08:00",
+        endTime: "18:00",
+        isHalfDay: false,
+        zone: "Abidjan" as string,
+        comment: "",
+        kilometers: "0",
     });
 
     // Pre-fill user info from profile
@@ -121,7 +139,9 @@ const Rentals = () => {
                     setFormData(prev => ({
                         ...prev,
                         fullName: data.full_name || "",
-                        phone: data.phone || ""
+                        phone: data.phone || "",
+                        startDate: new Date().toISOString().split('T')[0],
+                        endDate: new Date(Date.now() + 86400000).toISOString().split('T')[0] // Default to tomorrow
                     }));
                 }
             });
@@ -290,7 +310,7 @@ Merci de confirmer la disponibilité.`;
                                             }`}
                                     >
                                         <div className="w-24 h-16 bg-secondary rounded-2xl flex items-center justify-center p-2">
-                                            <img src={v.image_url || v.image} alt={v.name} className="w-full h-auto object-contain" />
+                                            <img src={v.image_url} alt={v.name} className="h-full w-full object-contain" />
                                         </div>
                                         <div className="flex-1">
                                             <h3 className="font-heading font-bold text-base">{v.name}</h3>
@@ -453,60 +473,134 @@ Merci de confirmer la disponibilité.`;
                                         )}
 
                                         <div className="grid grid-cols-2 gap-3">
+                                            {/* Custom Start Date Picker */}
                                             <div className="space-y-1.5">
-                                                <Label htmlFor="start" className="text-[11px] ml-1">Départ *</Label>
-                                                <div className="relative">
-                                                    <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
-                                                    <Input
-                                                        id="start"
-                                                        type="date"
-                                                        value={formData.startDate}
-                                                        onChange={(e) => setFormData(prev => ({ ...prev, startDate: e.target.value }))}
-                                                        className="h-12 rounded-xl bg-secondary/30 border-none pl-9 pr-2 text-xs"
-                                                    />
-                                                </div>
+                                                <Label className="text-[11px] ml-1">Départ *</Label>
+                                                <Drawer>
+                                                    <DrawerTrigger asChild>
+                                                        <div className="group w-full h-12 rounded-xl bg-secondary/30 flex items-center gap-3 px-3 cursor-pointer hover:bg-secondary/50 transition-colors">
+                                                            <Calendar className="w-3.5 h-3.5 text-muted-foreground group-hover:text-primary transition-colors" />
+                                                            <span className={cn("text-xs font-body", !formData.startDate && "text-muted-foreground")}>
+                                                                {formData.startDate ? format(new Date(formData.startDate), "PPP", { locale: fr }) : "Date *"}
+                                                            </span>
+                                                        </div>
+                                                    </DrawerTrigger>
+                                                    <DrawerContent className="p-4">
+                                                        <DrawerHeader className="px-0">
+                                                            <DrawerTitle className="text-left font-heading">Date de départ</DrawerTitle>
+                                                        </DrawerHeader>
+                                                        <div className="flex justify-center p-2">
+                                                            <CalendarComponent
+                                                                mode="single"
+                                                                selected={formData.startDate ? new Date(formData.startDate) : undefined}
+                                                                onSelect={(date) => setFormData(prev => ({ ...prev, startDate: date ? date.toISOString().split('T')[0] : "" }))}
+                                                                initialFocus
+                                                                locale={fr}
+                                                                className="rounded-xl border border-border shadow-sm"
+                                                            />
+                                                        </div>
+                                                        <DrawerFooter className="px-0 pt-4">
+                                                            <DrawerClose asChild>
+                                                                <Button className="w-full h-12 rounded-xl">Confirmer</Button>
+                                                            </DrawerClose>
+                                                        </DrawerFooter>
+                                                    </DrawerContent>
+                                                </Drawer>
                                             </div>
+
+                                            {/* Custom Start Time Picker */}
                                             <div className="space-y-1.5">
-                                                <Label htmlFor="startTime" className="text-[11px] ml-1">Heure *</Label>
-                                                <div className="relative">
-                                                    <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
-                                                    <Input
-                                                        id="startTime"
-                                                        type="time"
-                                                        value={formData.startTime}
-                                                        onChange={(e) => setFormData(prev => ({ ...prev, startTime: e.target.value }))}
-                                                        className="h-12 rounded-xl bg-secondary/30 border-none pl-9 pr-2 text-xs"
-                                                    />
-                                                </div>
+                                                <Label className="text-[11px] ml-1">Heure *</Label>
+                                                <Drawer>
+                                                    <DrawerTrigger asChild>
+                                                        <div className="group w-full h-12 rounded-xl bg-secondary/30 flex items-center gap-3 px-3 cursor-pointer hover:bg-secondary/50 transition-colors">
+                                                            <Clock className="w-3.5 h-3.5 text-muted-foreground group-hover:text-primary transition-colors" />
+                                                            <span className="text-xs font-body">{formData.startTime}</span>
+                                                        </div>
+                                                    </DrawerTrigger>
+                                                    <DrawerContent className="px-4 pb-8">
+                                                        <DrawerHeader className="px-0">
+                                                            <DrawerTitle className="text-left font-heading">Heure de départ</DrawerTitle>
+                                                        </DrawerHeader>
+                                                        <div className="py-4">
+                                                            <ClockPicker
+                                                                value={formData.startTime}
+                                                                onChange={(val) => setFormData(prev => ({ ...prev, startTime: val }))}
+                                                            />
+                                                        </div>
+                                                        <DrawerFooter className="px-0 pt-2 pb-6">
+                                                            <DrawerClose asChild>
+                                                                <Button className="w-full h-12 rounded-xl">Confirmer</Button>
+                                                            </DrawerClose>
+                                                        </DrawerFooter>
+                                                    </DrawerContent>
+                                                </Drawer>
                                             </div>
                                         </div>
 
                                         <div className="grid grid-cols-2 gap-3">
+                                            {/* Custom End Date Picker */}
                                             <div className="space-y-1.5">
-                                                <Label htmlFor="end" className="text-[11px] ml-1">Retour *</Label>
-                                                <div className="relative">
-                                                    <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
-                                                    <Input
-                                                        id="end"
-                                                        type="date"
-                                                        value={formData.endDate}
-                                                        onChange={(e) => setFormData(prev => ({ ...prev, endDate: e.target.value }))}
-                                                        className="h-12 rounded-xl bg-secondary/30 border-none pl-9 pr-2 text-xs"
-                                                    />
-                                                </div>
+                                                <Label className="text-[11px] ml-1">Retour *</Label>
+                                                <Drawer>
+                                                    <DrawerTrigger asChild>
+                                                        <div className="group w-full h-12 rounded-xl bg-secondary/30 flex items-center gap-3 px-3 cursor-pointer hover:bg-secondary/50 transition-colors">
+                                                            <Calendar className="w-3.5 h-3.5 text-muted-foreground group-hover:text-primary transition-colors" />
+                                                            <span className={cn("text-xs font-body", !formData.endDate && "text-muted-foreground")}>
+                                                                {formData.endDate ? format(new Date(formData.endDate), "PPP", { locale: fr }) : "Date *"}
+                                                            </span>
+                                                        </div>
+                                                    </DrawerTrigger>
+                                                    <DrawerContent className="p-4">
+                                                        <DrawerHeader className="px-0">
+                                                            <DrawerTitle className="text-left font-heading">Date de retour</DrawerTitle>
+                                                        </DrawerHeader>
+                                                        <div className="flex justify-center p-2">
+                                                            <CalendarComponent
+                                                                mode="single"
+                                                                selected={formData.endDate ? new Date(formData.endDate) : undefined}
+                                                                onSelect={(date) => setFormData(prev => ({ ...prev, endDate: date ? date.toISOString().split('T')[0] : "" }))}
+                                                                initialFocus
+                                                                locale={fr}
+                                                                className="rounded-xl border border-border shadow-sm"
+                                                            />
+                                                        </div>
+                                                        <DrawerFooter className="px-0 pt-4">
+                                                            <DrawerClose asChild>
+                                                                <Button className="w-full h-12 rounded-xl">Confirmer</Button>
+                                                            </DrawerClose>
+                                                        </DrawerFooter>
+                                                    </DrawerContent>
+                                                </Drawer>
                                             </div>
+
+                                            {/* Custom End Time Picker */}
                                             <div className="space-y-1.5">
-                                                <Label htmlFor="endTime" className="text-[11px] ml-1">Heure *</Label>
-                                                <div className="relative">
-                                                    <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
-                                                    <Input
-                                                        id="endTime"
-                                                        type="time"
-                                                        value={formData.endTime}
-                                                        onChange={(e) => setFormData(prev => ({ ...prev, endTime: e.target.value }))}
-                                                        className="h-12 rounded-xl bg-secondary/30 border-none pl-9 pr-2 text-xs"
-                                                    />
-                                                </div>
+                                                <Label className="text-[11px] ml-1">Heure *</Label>
+                                                <Drawer>
+                                                    <DrawerTrigger asChild>
+                                                        <div className="group w-full h-12 rounded-xl bg-secondary/30 flex items-center gap-3 px-3 cursor-pointer hover:bg-secondary/50 transition-colors">
+                                                            <Clock className="w-3.5 h-3.5 text-muted-foreground group-hover:text-primary transition-colors" />
+                                                            <span className="text-xs font-body">{formData.endTime}</span>
+                                                        </div>
+                                                    </DrawerTrigger>
+                                                    <DrawerContent className="px-4 pb-8">
+                                                        <DrawerHeader className="px-0">
+                                                            <DrawerTitle className="text-left font-heading">Heure de retour</DrawerTitle>
+                                                        </DrawerHeader>
+                                                        <div className="py-4">
+                                                            <ClockPicker
+                                                                value={formData.endTime}
+                                                                onChange={(val) => setFormData(prev => ({ ...prev, endTime: val }))}
+                                                            />
+                                                        </div>
+                                                        <DrawerFooter className="px-0 pt-2 pb-6">
+                                                            <DrawerClose asChild>
+                                                                <Button className="w-full h-12 rounded-xl">Confirmer</Button>
+                                                            </DrawerClose>
+                                                        </DrawerFooter>
+                                                    </DrawerContent>
+                                                </Drawer>
                                             </div>
                                         </div>
                                     </div>

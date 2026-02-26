@@ -67,6 +67,7 @@
     },
     "booking": {
         "title": "Réservation",
+        "date": "Date",
         "vehicle_recap": "Récapitulatif du véhicule",
         "change_vehicle": "Changer de véhicule",
         "choose_vehicle": "Choisir un véhicule",

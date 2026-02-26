@@ -51,13 +51,26 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const [isAuthProcessing, setIsAuthProcessing] = useState(isAuthRedirect());
 
   useEffect(() => {
+    // If we're on a deep-link/auth-redirect URL, it might take a moment to process.
+    // We clean it up and hide loading once we have a definitive auth state.
     if (!loading) {
-      setIsAuthProcessing(false);
+      const timer = setTimeout(() => {
+        setIsAuthProcessing(false);
+        // Clean up fragments once we have processed them
+        if (window.location.hash.includes("access_token=") || window.location.hash.includes("error=")) {
+          // We use replaceState instead of navigate to not trigger router re-mounts
+          window.history.replaceState(null, "", window.location.pathname);
+        }
+      }, 800);
+      return () => clearTimeout(timer);
     }
   }, [loading]);
 
   if (loading || isAuthProcessing) return <LoadingScreen />;
-  if (!user) return <Navigate to="/login" replace />;
+  if (!user) {
+    // If we were expecting an auth redirect but got no user, we force go to login
+    return <Navigate to="/login" replace />;
+  }
   return <>{children}</>;
 };
 
@@ -69,7 +82,9 @@ const PublicRoute = ({ children }: { children: React.ReactNode }) => {
 };
 
 const AppContent = () => {
-  const [showSplash, setShowSplash] = useState(false);
+  const [showSplash, setShowSplash] = useState(() => {
+    return !sessionStorage.getItem("splashShown");
+  });
 
   const handleSplashFinish = () => {
     setShowSplash(false);

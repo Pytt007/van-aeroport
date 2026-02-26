@@ -67,6 +67,7 @@
     },
     "booking": {
         "title": "Booking",
+        "date": "Date",
         "vehicle_recap": "Vehicle summary",
         "change_vehicle": "Change vehicle",
         "choose_vehicle": "Choose a vehicle",

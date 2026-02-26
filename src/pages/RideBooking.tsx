@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import { Database } from "@/integrations/supabase/types";
 import { cn } from "@/lib/utils";
 import { useFavorites } from "@/hooks/useFavorites";
 import {
@@ -24,10 +25,15 @@ import {
     DrawerClose,
     DrawerContent,
     DrawerDescription,
+    DrawerFooter,
     DrawerHeader,
     DrawerTitle,
     DrawerTrigger,
 } from "@/components/ui/drawer";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
+import ClockPicker from "@/components/ClockPicker";
+import { format } from "date-fns";
+import { fr } from "date-fns/locale";
 import taxiSedan from "@/assets/taxi-sedan.png";
 import taxiSuv from "@/assets/taxi-suv.png";
 import taxiVan from "@/assets/taxi-van.png";
@@ -44,25 +50,40 @@ const RideBooking = () => {
     const [step, setStep] = useState(1); // 1: Vehicle, 2: Details, 3: Summary
 
     // Dynamic Data State
-    const [vehicles, setVehicles] = useState<any[]>([]);
+    const [vehicles, setVehicles] = useState<Database['public']['Tables']['vehicles']['Row'][]>([]);
     const [pricing, setPricing] = useState<any>(null);
 
     useEffect(() => {
         const fetchData = async () => {
             try {
-                const { data: vData } = await (supabase as any).from("vehicles").select("*");
+                const { data: vData } = await supabase.from("vehicles").select("*");
                 if (vData && vData.length > 0) {
-                    setVehicles(vData);
+                    const mappedVehicles = vData.map(v => {
+                        const localImg = v.name === "Bestune T55" ? taxiSedan :
+                            v.name === "Bestune T77" ? taxiSuv :
+                                v.name === "Nissan Kicks" ? taxiVan : null;
+
+                        const isPlaceholder = v.image_url && (
+                            v.image_url.includes("votre-bucket.supabase.co") ||
+                            v.image_url.includes("placeholder")
+                        );
+
+                        return {
+                            ...v,
+                            image_url: isPlaceholder ? (localImg || v.image_url) : (v.image_url || localImg)
+                        };
+                    });
+                    setVehicles(mappedVehicles);
                 } else {
                     // Fallback vehicles
                     setVehicles([
-                        { id: "v1", name: "Bestune T55", category: "T-Series", image: taxiSedan, rating: 4.8 },
-                        { id: "v2", name: "Bestune T77", category: "T-Series", image: taxiSuv, rating: 4.9 },
-                        { id: "v3", name: "Nissan Kicks", category: "Kicks", image: taxiVan, rating: 4.7 }
+                        { id: "v1", name: "Bestune T55", category: "T-Series", image_url: taxiSedan, rating: 4.8, created_at: "", engine: null, is_available: true, seats: null, speed: null },
+                        { id: "v2", name: "Bestune T77", category: "T-Series", image_url: taxiSuv, rating: 4.9, created_at: "", engine: null, is_available: true, seats: null, speed: null },
+                        { id: "v3", name: "Nissan Kicks", category: "Kicks", image_url: taxiVan, rating: 4.7, created_at: "", engine: null, is_available: true, seats: null, speed: null }
                     ]);
                 }
 
-                const { data: pData } = await (supabase as any).from("app_settings").select("*").eq("key", "hourly_pricing").single();
+                const { data: pData } = await supabase.from("app_settings").select("*").eq("key", "hourly_pricing").single();
                 if (pData) {
                     setPricing(pData.value);
                 } else {
@@ -76,9 +97,9 @@ const RideBooking = () => {
                 console.error("Error fetching ride booking data:", error);
                 // Set fallback data anyway on error
                 setVehicles([
-                    { id: "v1", name: "Bestune T55", category: "T-Series", image: taxiSedan, rating: 4.8 },
-                    { id: "v2", name: "Bestune T77", category: "T-Series", image: taxiSuv, rating: 4.9 },
-                    { id: "v3", name: "Nissan Kicks", category: "Kicks", image: taxiVan, rating: 4.7 }
+                    { id: "v1", name: "Bestune T55", category: "T-Series", image_url: taxiSedan, rating: 4.8, created_at: "", engine: null, is_available: true, seats: null, speed: null },
+                    { id: "v2", name: "Bestune T77", category: "T-Series", image_url: taxiSuv, rating: 4.9, created_at: "", engine: null, is_available: true, seats: null, speed: null },
+                    { id: "v3", name: "Nissan Kicks", category: "Kicks", image_url: taxiVan, rating: 4.7, created_at: "", engine: null, is_available: true, seats: null, speed: null }
                 ]);
                 setPricing({
                     t_series: { first_hour: 15000, additional_hour: 7000 },
@@ -124,7 +145,8 @@ const RideBooking = () => {
                     setFormData(prev => ({
                         ...prev,
                         fullName: data.full_name || "",
-                        phone: data.phone || ""
+                        phone: data.phone || "",
+                        date: new Date().toISOString().split('T')[0] // Initialize with today's date string if empty
                     }));
                 }
             });
@@ -146,8 +168,8 @@ const RideBooking = () => {
 
         if (!config) return null;
 
-        let firstHourPrice = config.first_hour;
-        let additionalHourPrice = config.additional_hour;
+        const firstHourPrice = config.first_hour;
+        const additionalHourPrice = config.additional_hour;
 
         const total = hours === 1 ? firstHourPrice : firstHourPrice + (hours - 1) * additionalHourPrice;
 
@@ -267,7 +289,7 @@ Merci de confirmer la disponibilité.`;
                                             }`}
                                     >
                                         <div className="w-24 h-16 bg-secondary rounded-2xl flex items-center justify-center p-2">
-                                            <img src={v.image_url || v.image} alt={v.name} className="w-full h-auto object-contain" />
+                                            <img src={v.image_url} alt={v.name} className="h-full w-full object-contain" />
                                         </div>
                                         <div className="flex-1">
                                             <h3 className="font-heading font-bold text-base">{v.name}</h3>
@@ -352,24 +374,63 @@ Merci de confirmer la disponibilité.`;
                                     </div>
                                     <div className="space-y-3">
                                         <div className="grid grid-cols-2 gap-3">
-                                            <div className="relative">
-                                                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                                                <Input
-                                                    type="date"
-                                                    value={formData.date}
-                                                    onChange={(e) => setFormData(prev => ({ ...prev, date: e.target.value }))}
-                                                    className="h-12 rounded-xl bg-secondary/50 border-none pl-10 pr-2 text-xs"
-                                                />
-                                            </div>
-                                            <div className="relative">
-                                                <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                                                <Input
-                                                    type="time"
-                                                    value={formData.startTime}
-                                                    onChange={(e) => setFormData(prev => ({ ...prev, startTime: e.target.value }))}
-                                                    className="h-12 rounded-xl bg-secondary/50 border-none pl-10 pr-2 text-xs"
-                                                />
-                                            </div>
+                                            {/* Custom Date Picker */}
+                                            <Drawer>
+                                                <DrawerTrigger asChild>
+                                                    <div className="group w-full h-12 rounded-xl bg-secondary/50 flex items-center gap-3 px-3 cursor-pointer hover:bg-secondary/70 transition-colors">
+                                                        <Calendar className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
+                                                        <span className={cn("text-xs font-body", !formData.date && "text-muted-foreground")}>
+                                                            {formData.date ? format(new Date(formData.date), "PPP", { locale: fr }) : "Date *"}
+                                                        </span>
+                                                    </div>
+                                                </DrawerTrigger>
+                                                <DrawerContent className="p-4">
+                                                    <DrawerHeader className="px-0">
+                                                        <DrawerTitle className="text-left font-heading">Date de départ</DrawerTitle>
+                                                    </DrawerHeader>
+                                                    <div className="flex justify-center p-2">
+                                                        <CalendarComponent
+                                                            mode="single"
+                                                            selected={formData.date ? new Date(formData.date) : undefined}
+                                                            onSelect={(date) => setFormData(prev => ({ ...prev, date: date ? date.toISOString().split('T')[0] : "" }))}
+                                                            initialFocus
+                                                            locale={fr}
+                                                            className="rounded-xl border border-border shadow-sm"
+                                                        />
+                                                    </div>
+                                                    <DrawerFooter className="px-0 pt-4">
+                                                        <DrawerClose asChild>
+                                                            <Button className="w-full h-12 rounded-xl">Confirmer la date</Button>
+                                                        </DrawerClose>
+                                                    </DrawerFooter>
+                                                </DrawerContent>
+                                            </Drawer>
+
+                                            {/* Custom Time Picker */}
+                                            <Drawer>
+                                                <DrawerTrigger asChild>
+                                                    <div className="group w-full h-12 rounded-xl bg-secondary/50 flex items-center gap-3 px-3 cursor-pointer hover:bg-secondary/70 transition-colors">
+                                                        <Clock className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
+                                                        <span className="text-xs font-body">{formData.startTime}</span>
+                                                    </div>
+                                                </DrawerTrigger>
+                                                <DrawerContent className="px-4 pb-8">
+                                                    <DrawerHeader className="px-0">
+                                                        <DrawerTitle className="text-left font-heading">Heure de départ</DrawerTitle>
+                                                    </DrawerHeader>
+                                                    <div className="py-4">
+                                                        <ClockPicker
+                                                            value={formData.startTime}
+                                                            onChange={(val) => setFormData(prev => ({ ...prev, startTime: val }))}
+                                                        />
+                                                    </div>
+                                                    <DrawerFooter className="px-0 pt-2 pb-6">
+                                                        <DrawerClose asChild>
+                                                            <Button className="w-full h-12 rounded-xl">Confirmer l'heure</Button>
+                                                        </DrawerClose>
+                                                    </DrawerFooter>
+                                                </DrawerContent>
+                                            </Drawer>
                                         </div>
 
                                         <div className="relative">

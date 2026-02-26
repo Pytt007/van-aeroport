@@ -20,16 +20,12 @@ const VehicleDetail = () => {
   const vehicle = location.state?.vehicle;
   const [readMore, setReadMore] = useState(false);
 
-  // Resolve vehicle index for favorites
-  const vehicleNames = ["Bestune T55", "Bestune T77", "Nissan Kicks"];
-  const vehicleIndex = vehicleNames.indexOf(vehicle?.name);
-
   const getInitialLiked = () => {
-    if (vehicleIndex < 0) return false;
+    if (!vehicle?.id && !vehicle?.name) return false;
     try {
       const stored = localStorage.getItem(FAVORITES_KEY);
-      const ids: number[] = stored ? JSON.parse(stored) : [];
-      return ids.includes(vehicleIndex);
+      const ids: string[] = stored ? JSON.parse(stored) : [];
+      return ids.includes(vehicle.id || vehicle.name);
     } catch {
       return false;
     }
@@ -37,15 +33,16 @@ const VehicleDetail = () => {
   const [liked, setLiked] = useState(getInitialLiked);
 
   const toggleLike = () => {
-    if (vehicleIndex < 0) return;
+    if (!vehicle?.id && !vehicle?.name) return;
     try {
       const stored = localStorage.getItem(FAVORITES_KEY);
-      const ids: number[] = stored ? JSON.parse(stored) : [];
-      let updated: number[];
-      if (ids.includes(vehicleIndex)) {
-        updated = ids.filter((id) => id !== vehicleIndex);
+      const ids: string[] = stored ? JSON.parse(stored) : [];
+      const currentId = vehicle.id || vehicle.name;
+      let updated: string[];
+      if (ids.includes(currentId)) {
+        updated = ids.filter((id) => id !== currentId);
       } else {
-        updated = [...ids, vehicleIndex];
+        updated = [...ids, currentId];
       }
       localStorage.setItem(FAVORITES_KEY, JSON.stringify(updated));
       setLiked(!liked);

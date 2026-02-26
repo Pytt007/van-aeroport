@@ -97,7 +97,7 @@ export type Database = {
                     avatar_url?: string | null
                     created_at?: string
                     full_name?: string | null
-                    id: string
+                    id?: string
                     phone?: string | null
                     updated_at?: string
                     user_id?: string | null
@@ -112,6 +112,116 @@ export type Database = {
                     user_id?: string | null
                 }
                 Relationships: []
+            }
+            vehicles: {
+                Row: {
+                    id: string
+                    name: string
+                    category: string
+                    image_url: string
+                    rating: number | null
+                    speed: string | null
+                    seats: string | null
+                    engine: string | null
+                    is_available: boolean | null
+                    created_at: string
+                }
+                Insert: {
+                    id?: string
+                    name: string
+                    category: string
+                    image_url: string
+                    rating?: number | null
+                    speed?: string | null
+                    seats?: string | null
+                    engine?: string | null
+                    is_available?: boolean | null
+                    created_at?: string
+                }
+                Update: {
+                    id?: string
+                    name?: string
+                    category?: string
+                    image_url?: string
+                    rating?: number | null
+                    speed?: string | null
+                    seats?: string | null
+                    engine?: string | null
+                    is_available?: boolean | null
+                    created_at?: string
+                }
+                Relationships: []
+            }
+            app_settings: {
+                Row: {
+                    key: string
+                    value: Json
+                    description: string | null
+                    updated_at: string
+                }
+                Insert: {
+                    key: string
+                    value: Json
+                    description?: string | null
+                    updated_at?: string
+                }
+                Update: {
+                    key?: string
+                    value?: Json
+                    description?: string | null
+                    updated_at?: string
+                }
+                Relationships: []
+            }
+            zone_pricing: {
+                Row: {
+                    zone_letter: string
+                    price: number
+                }
+                Insert: {
+                    zone_letter: string
+                    price: number
+                }
+                Update: {
+                    zone_letter?: string
+                    price?: number
+                }
+                Relationships: []
+            }
+            communes: {
+                Row: {
+                    id: string
+                    name: string
+                    zone_letter: string | null
+                    airport_price: number | null
+                    is_active: boolean | null
+                    display_order: number | null
+                }
+                Insert: {
+                    id?: string
+                    name: string
+                    zone_letter?: string | null
+                    airport_price?: number | null
+                    is_active?: boolean | null
+                    display_order?: number | null
+                }
+                Update: {
+                    id?: string
+                    name?: string
+                    zone_letter?: string | null
+                    airport_price?: number | null
+                    is_active?: boolean | null
+                    display_order?: number | null
+                }
+                Relationships: [
+                    {
+                        foreignKeyName: "communes_zone_letter_fkey"
+                        columns: ["zone_letter"]
+                        isOneToOne: false
+                        referencedRelation: "zone_pricing"
+                        referencedColumns: ["zone_letter"]
+                    }
+                ]
             }
         }
         Views: {

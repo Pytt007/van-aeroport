@@ -1,23 +1,29 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { format } from "date-fns";
+import { fr } from "date-fns/locale";
 import { motion } from "framer-motion";
-import { MapPin, ArrowRight, User, Phone, Calendar, Clock, Users, Star, ChevronRight, Gauge, Zap, MessageCircle } from "lucide-react";
+import { MapPin, ArrowRight, User, Phone, Calendar as LucideCalendar, Clock, Users, Star, ChevronRight, Gauge, Zap, MessageCircle, CheckCircle2 } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import MobileLayout, { PageTransition } from "@/components/MobileLayout";
 import MobileHeader from "@/components/MobileHeader";
 import SwipeButton from "@/components/SwipeButton";
+import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Database } from "@/integrations/supabase/types";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useFavorites } from "@/hooks/useFavorites";
+import ClockPicker from "@/components/ClockPicker";
 import {
   Home as HomeIcon,
   Briefcase,
   Archive,
-  Plus
+  Plus,
+  Calendar as CalendarIcon,
 } from "lucide-react";
+import { Calendar } from "@/components/ui/calendar";
 import {
   Drawer,
   DrawerClose,
@@ -29,6 +35,10 @@ import {
   DrawerTrigger,
 } from "@/components/ui/drawer";
 
+import taxiSedan from "@/assets/taxi-sedan.png";
+import taxiSuv from "@/assets/taxi-suv.png";
+import taxiVan from "@/assets/taxi-van.png";
+
 import { CONFIG } from "@/constants/config";
 
 const Booking = () => {
@@ -37,11 +47,15 @@ const Booking = () => {
   const location = useLocation();
   const { user } = useAuth();
   const { favorites } = useFavorites();
-  const vehicle = location.state?.vehicle || null;
+  const [vehicle, setVehicle] = useState(location.state?.vehicle || null);
   const incomingDestination = location.state?.destination || "";
 
+  // Vehicles Data State
+  const [vehiclesData, setVehiclesData] = useState<any[]>([]);
+  const [isVehicleDrawerOpen, setIsVehicleDrawerOpen] = useState(false);
+
   // Dynamic Data State
-  const [communes, setCommunes] = useState<any[]>([]);
+  const [communes, setCommunes] = useState<Database['public']['Tables']['communes']['Row'][]>([]);
   const [zoneRates, setZoneRates] = useState<Record<string, number>>({});
   const [airportHub, setAirportHub] = useState("Aéroport Félix Houphouët-Boigny");
 
@@ -54,7 +68,7 @@ const Booking = () => {
     const fetchPricing = async () => {
       try {
         // 1. Fetch Communes
-        const { data: communesData } = await (supabase as any).from("communes").select("*").order("display_order");
+        const { data: communesData } = await supabase.from("communes").select("*").order("display_order");
         if (communesData && communesData.length > 0) {
           setCommunes(communesData);
           if (!pickup) setPickup(communesData[0]?.name);
@@ -62,13 +76,13 @@ const Booking = () => {
         } else {
           // Fallback communes
           const fallbackCommunes = [
-            { id: "c1", name: "Aéroport Félix Houphouët-Boigny", zone_letter: null, airport_price: 0 },
-            { id: "c2", name: "Marcory", zone_letter: "A", airport_price: 7500 },
-            { id: "c3", name: "Cocody", zone_letter: "A", airport_price: 10000 },
-            { id: "c4", name: "Yopougon", zone_letter: "C", airport_price: 15000 },
-            { id: "c5", name: "Plateau", zone_letter: "A", airport_price: 10000 },
-            { id: "c6", name: "Koumassi", zone_letter: "A", airport_price: 7500 },
-            { id: "c7", name: "Port-Bouët", zone_letter: "A", airport_price: 7500 }
+            { id: "c1", name: "Aéroport Félix Houphouët-Boigny", zone_letter: null, airport_price: 0, is_active: true, display_order: 1 },
+            { id: "c2", name: "Marcory", zone_letter: "A", airport_price: 7500, is_active: true, display_order: 2 },
+            { id: "c3", name: "Cocody", zone_letter: "A", airport_price: 10000, is_active: true, display_order: 3 },
+            { id: "c4", name: "Yopougon", zone_letter: "C", airport_price: 15000, is_active: true, display_order: 4 },
+            { id: "c5", name: "Plateau", zone_letter: "A", airport_price: 10000, is_active: true, display_order: 5 },
+            { id: "c6", name: "Koumassi", zone_letter: "A", airport_price: 7500, is_active: true, display_order: 6 },
+            { id: "c7", name: "Port-Bouët", zone_letter: "A", airport_price: 7500, is_active: true, display_order: 7 }
           ];
           setCommunes(fallbackCommunes);
           if (!pickup) setPickup(fallbackCommunes[0].name);
@@ -76,36 +90,72 @@ const Booking = () => {
         }
 
         // 2. Fetch Zone Pricing
-        const { data: zonesData } = await (supabase as any).from("zone_pricing").select("*");
+        const { data: zonesData } = await supabase.from("zone_pricing").select("*");
         if (zonesData && zonesData.length > 0) {
           const rates: Record<string, number> = {};
-          zonesData.forEach((z: any) => rates[z.zone_letter] = z.price);
+          zonesData.forEach((z) => {
+            if (z.zone_letter) rates[z.zone_letter] = z.price;
+          });
           setZoneRates(rates);
         } else {
           setZoneRates({ "A": 8000, "B": 12000, "C": 15000, "D": 20000 });
         }
 
         // 3. Fetch Settings
-        const { data: settingsData } = await (supabase as any).from("app_settings").select("*").eq("key", "airport_config").single();
+        const { data: settingsData } = await supabase.from("app_settings").select("*").eq("key", "airport_config").single();
         if (settingsData) {
-          setAirportHub(settingsData.value.hub_name);
+          const value = settingsData.value as any;
+          if (value?.hub_name) setAirportHub(value.hub_name);
         }
       } catch (error) {
         console.error("Error fetching booking pricing:", error);
         // Fallback on error
         setCommunes([
-          { id: "c1", name: "Aéroport Félix Houphouët-Boigny", zone_letter: null, airport_price: 0 },
-          { id: "c2", name: "Marcory", zone_letter: "A", airport_price: 7500 },
-          { id: "c3", name: "Cocody", zone_letter: "A", airport_price: 10000 }
+          { id: "c1", name: "Aéroport Félix Houphouët-Boigny", zone_letter: null, airport_price: 0, is_active: true, display_order: 1 },
+          { id: "c2", name: "Marcory", zone_letter: "A", airport_price: 7500, is_active: true, display_order: 2 },
+          { id: "c3", name: "Cocody", zone_letter: "A", airport_price: 10000, is_active: true, display_order: 3 }
         ]);
         setZoneRates({ "A": 8000, "B": 12000, "C": 15000, "D": 20000 });
       }
     };
 
     fetchPricing();
-  }, []);
 
-  const calculateDynamicPrice = (p: string, d: string) => {
+    // Fetch Vehicles for selection
+    const fetchVehicles = async () => {
+      try {
+        const { data } = await supabase.from("vehicles").select("*").order("name");
+        const defaultVehicles = [
+          { id: "v1", name: "Bestune T55", rating: 4.8, speed: "190 km/h", seats: "5 Places", engine: "1.5L Turbo", image: taxiSedan },
+          { id: "v2", name: "Bestune T77", rating: 4.9, speed: "192 km/h", seats: "5 Places", engine: "1.5L Turbo", image: taxiSuv },
+          { id: "v3", name: "Nissan Kicks", rating: 4.7, speed: "180 km/h", seats: "5 Places", engine: "1.6L Essence", image: taxiVan },
+        ];
+
+        if (data && data.length > 0) {
+          const mapped = data.map(v => {
+            const localImg = v.name === "Bestune T55" ? taxiSedan :
+              v.name === "Bestune T77" ? taxiSuv :
+                v.name === "Nissan Kicks" ? taxiVan : null;
+            const isPlaceholder = v.image_url && (v.image_url.includes("votre-bucket.supabase.co") || v.image_url.includes("placeholder"));
+            return { ...v, image: isPlaceholder ? (localImg || v.image_url) : (v.image_url || localImg) };
+          });
+          setVehiclesData(mapped);
+        } else {
+          setVehiclesData(defaultVehicles);
+        }
+      } catch (error) {
+        console.error("Error fetching vehicles:", error);
+        setVehiclesData([
+          { id: "v1", name: "Bestune T55", rating: 4.8, speed: "190 km/h", seats: "5 Places", engine: "1.5L Turbo", image: taxiSedan },
+          { id: "v2", name: "Bestune T77", rating: 4.9, speed: "192 km/h", seats: "5 Places", engine: "1.5L Turbo", image: taxiSuv },
+          { id: "v3", name: "Nissan Kicks", rating: 4.7, speed: "180 km/h", seats: "5 Places", engine: "1.6L Essence", image: taxiVan },
+        ]);
+      }
+    };
+    fetchVehicles();
+  }, [pickup, destination, incomingDestination]);
+
+  const calculateDynamicPrice = useCallback((p: string, d: string) => {
     if (!p || !d || p === d) return 0;
 
     const pickupObj = communes.find(c => c.name === p);
@@ -124,19 +174,19 @@ const Booking = () => {
 
     const maxZone = zoneP > zoneD ? zoneP : zoneD;
     return zoneRates[maxZone] || 0;
-  };
+  }, [communes, zoneRates, airportHub]);
 
   useEffect(() => {
     setEstimatedPrice(calculateDynamicPrice(pickup, destination));
-  }, [pickup, destination, communes, zoneRates, airportHub]);
+  }, [pickup, destination, calculateDynamicPrice]);
 
   const [lastName, setLastName] = useState("");
   const [firstName, setFirstName] = useState("");
   const [phone, setPhone] = useState("");
-  const [pickupDate, setPickupDate] = useState("");
-  const [pickupTime, setPickupTime] = useState("");
-  const [returnDate, setReturnDate] = useState("");
-  const [returnTime, setReturnTime] = useState("");
+  const [pickupDate, setPickupDate] = useState<Date | undefined>(new Date());
+  const [pickupTime, setPickupTime] = useState("08:00");
+  const [returnDate, setReturnDate] = useState<Date | undefined>(undefined);
+  const [returnTime, setReturnTime] = useState("18:00");
   const [travelers, setTravelers] = useState("1");
 
   // Pre-fill user info from profile
@@ -198,13 +248,14 @@ const Booking = () => {
     // Generate WhatsApp Message
     const message = `Bonjour, je souhaite réserver un van.
 
-Nom : ${lastName} ${firstName}
-Téléphone : ${phone}
-Date : ${pickupDate}
-Heure : ${pickupTime}
-Départ : ${pickup}
-Destination : ${destination}
-Prix estimé : ${estimatedPrice.toLocaleString('fr-FR')} F CFA
+*NOM :* ${lastName} ${firstName}
+*TÉLÉPHONE :* ${phone}
+*VÉHICULE :* ${vehicle.name}
+*DATE :* ${pickupDate ? format(pickupDate, 'dd/MM/yyyy') : '--'}
+*HEURE :* ${pickupTime}
+*DÉPART :* ${pickup}
+*DESTINATION :* ${destination}
+*PRIX ESTIMÉ :* ${estimatedPrice.toLocaleString('fr-FR')} F CFA
 
 Merci de confirmer la disponibilité.`;
 
@@ -218,7 +269,7 @@ Merci de confirmer la disponibilité.`;
         data: {
           fullName: `${firstName} ${lastName}`,
           phone,
-          pickupDate,
+          pickupDate: pickupDate ? format(pickupDate, 'yyyy-MM-dd') : '',
           pickupTime,
           pickup,
           destination,
@@ -278,24 +329,87 @@ Merci de confirmer la disponibilité.`;
 
                 </div>
               </div>
-              <button
-                onClick={() => navigate("/vehicles")}
-                className="w-full flex items-center justify-between px-4 py-3 border-t border-border bg-secondary/40 active:bg-secondary/70 transition-colors"
-              >
-                <span className="text-xs font-body text-muted-foreground">{t("booking.change_vehicle")}</span>
-                <ChevronRight className="w-4 h-4 text-muted-foreground" />
-              </button>
+              <Drawer open={isVehicleDrawerOpen} onOpenChange={setIsVehicleDrawerOpen}>
+                <DrawerTrigger asChild>
+                  <button
+                    className="w-full flex items-center justify-between px-4 py-3 border-t border-border bg-secondary/40 active:bg-secondary/70 transition-colors"
+                  >
+                    <span className="text-xs font-body text-muted-foreground">{t("booking.change_vehicle")}</span>
+                    <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                  </button>
+                </DrawerTrigger>
+                <DrawerContent className="px-4 pb-8">
+                  <DrawerHeader className="px-0">
+                    <DrawerTitle className="text-left font-heading">Changer de véhicule</DrawerTitle>
+                    <DrawerDescription className="text-left font-body">Sélectionnez un autre modèle pour votre trajet.</DrawerDescription>
+                  </DrawerHeader>
+                  <div className="grid grid-cols-1 gap-3 mt-4 max-h-[60vh] overflow-y-auto pr-2 scroll-area pb-4">
+                    {(vehiclesData.length > 0 ? vehiclesData : []).map((v) => (
+                      <DrawerClose asChild key={v.id}>
+                        <button
+                          onClick={() => setVehicle(v)}
+                          className={cn(
+                            "flex items-center gap-4 p-4 rounded-2xl border-2 transition-all text-left",
+                            vehicle?.id === v.id ? "border-primary bg-primary/5" : "border-border bg-card"
+                          )}
+                        >
+                          <div className="w-20 h-14 bg-secondary rounded-xl flex items-center justify-center p-2 shrink-0">
+                            <img src={v.image_url || v.image} alt={v.name} className="h-full w-full object-contain" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <h4 className="font-heading font-bold text-sm truncate">{v.name}</h4>
+                            <div className="flex items-center gap-1 mt-1">
+                              <Star className="w-3 h-3 fill-primary text-primary" />
+                              <span className="text-[10px] font-bold">{v.rating || "4.5"}</span>
+                            </div>
+                          </div>
+                          {vehicle?.id === v.id && <CheckCircle2 className="w-5 h-5 text-primary ml-auto" />}
+                        </button>
+                      </DrawerClose>
+                    ))}
+                  </div>
+                </DrawerContent>
+              </Drawer>
             </motion.div>
           ) : (
-            <motion.button
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              onClick={() => navigate("/vehicles")}
-              className="w-full flex items-center justify-between p-4 rounded-2xl bg-card border border-dashed border-primary/40 active:border-primary transition-colors"
-            >
-              <span className="text-sm font-body text-muted-foreground">{t("booking.choose_vehicle")}</span>
-              <ChevronRight className="w-4 h-4 text-primary" />
-            </motion.button>
+            <Drawer>
+              <DrawerTrigger asChild>
+                <motion.button
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="w-full flex items-center justify-between p-4 rounded-2xl bg-card border border-dashed border-primary/40 active:border-primary transition-colors"
+                >
+                  <span className="text-sm font-body text-muted-foreground">{t("booking.choose_vehicle")}</span>
+                  <ChevronRight className="w-4 h-4 text-primary" />
+                </motion.button>
+              </DrawerTrigger>
+              <DrawerContent className="px-4 pb-8">
+                <DrawerHeader className="px-0">
+                  <DrawerTitle className="text-left font-heading">Choisir un véhicule</DrawerTitle>
+                </DrawerHeader>
+                <div className="grid grid-cols-1 gap-3 mt-4 max-h-[60vh] overflow-y-auto pr-2 scroll-area pb-4">
+                  {(vehiclesData.length > 0 ? vehiclesData : []).map((v) => (
+                    <DrawerClose asChild key={v.id}>
+                      <button
+                        onClick={() => setVehicle(v)}
+                        className="flex items-center gap-4 p-4 rounded-2xl border border-border bg-card active:border-primary transition-all text-left"
+                      >
+                        <div className="w-20 h-14 bg-secondary rounded-xl flex items-center justify-center p-2 shrink-0">
+                          <img src={v.image_url || v.image} alt={v.name} className="h-full w-full object-contain" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h4 className="font-heading font-bold text-sm truncate">{v.name}</h4>
+                          <div className="flex items-center gap-1 mt-1">
+                            <Star className="w-3 h-3 fill-primary text-primary" />
+                            <span className="text-[10px] font-bold">{v.rating || "4.5"}</span>
+                          </div>
+                        </div>
+                      </button>
+                    </DrawerClose>
+                  ))}
+                </div>
+              </DrawerContent>
+            </Drawer>
           )}
 
           {/* Route */}
@@ -461,34 +575,136 @@ Merci de confirmer la disponibilité.`;
             </div>
           </motion.div>
 
-          {/* Dates */}
+          {/* Dates & Times Custom */}
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
-            className="rounded-2xl bg-card border border-border p-4 space-y-3"
+            className="rounded-2xl bg-card border border-border p-4 space-y-4"
           >
-            <h3 className="font-heading font-semibold text-sm">{t("booking.pickup")} *</h3>
-            <div className="flex gap-3">
-              <div className="relative flex-1">
-                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <input type="date" value={pickupDate} onChange={(e) => setPickupDate(e.target.value)} className={`${inputClass} pl-10`} />
-              </div>
-              <div className="relative flex-1">
-                <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <input type="time" value={pickupTime} onChange={(e) => setPickupTime(e.target.value)} className={`${inputClass} pl-10`} />
+            <div className="space-y-3">
+              <h3 className="font-heading font-semibold text-sm">{t("booking.pickup")} *</h3>
+              <div className="flex gap-3">
+                {/* Custom Date Picker Pickup */}
+                <Drawer>
+                  <DrawerTrigger asChild>
+                    <div className={cn(inputClass, "cursor-pointer flex items-center gap-3 flex-1 overflow-hidden")}>
+                      <CalendarIcon className="w-4 h-4 text-muted-foreground shrink-0" />
+                      <span className="truncate">
+                        {pickupDate ? format(pickupDate, "PPP", { locale: fr }) : t("booking.date")}
+                      </span>
+                    </div>
+                  </DrawerTrigger>
+                  <DrawerContent className="p-4">
+                    <DrawerHeader className="px-0">
+                      <DrawerTitle className="text-left font-heading">Date de départ</DrawerTitle>
+                    </DrawerHeader>
+                    <div className="flex justify-center p-2">
+                      <Calendar
+                        mode="single"
+                        selected={pickupDate}
+                        onSelect={(date) => setPickupDate(date)}
+                        initialFocus
+                        locale={fr}
+                        className="rounded-xl border border-border shadow-sm"
+                      />
+                    </div>
+                    <DrawerFooter className="px-0 pt-4">
+                      <DrawerClose asChild>
+                        <Button className="w-full h-12 rounded-xl">Confirmer la date</Button>
+                      </DrawerClose>
+                    </DrawerFooter>
+                  </DrawerContent>
+                </Drawer>
+
+                {/* Custom Time Picker Pickup */}
+                <Drawer>
+                  <DrawerTrigger asChild>
+                    <div className={cn(inputClass, "cursor-pointer flex items-center gap-3 flex-1 overflow-hidden")}>
+                      <Clock className="w-4 h-4 text-muted-foreground shrink-0" />
+                      <span className="truncate">{pickupTime}</span>
+                    </div>
+                  </DrawerTrigger>
+                  <DrawerContent className="px-4 pb-8">
+                    <DrawerHeader className="px-0">
+                      <DrawerTitle className="text-left font-heading">Heure de départ</DrawerTitle>
+                    </DrawerHeader>
+                    <div className="py-4">
+                      <ClockPicker
+                        value={pickupTime}
+                        onChange={(val) => setPickupTime(val)}
+                      />
+                    </div>
+                    <DrawerFooter className="px-0 pt-2 pb-6">
+                      <DrawerClose asChild>
+                        <Button className="w-full h-12 rounded-xl">Confirmer l'heure</Button>
+                      </DrawerClose>
+                    </DrawerFooter>
+                  </DrawerContent>
+                </Drawer>
               </div>
             </div>
 
-            <h3 className="font-heading font-semibold text-sm pt-1">{t("booking.return_date")}</h3>
-            <div className="flex gap-3">
-              <div className="relative flex-1">
-                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <input type="date" value={returnDate} onChange={(e) => setReturnDate(e.target.value)} className={`${inputClass} pl-10`} />
-              </div>
-              <div className="relative flex-1">
-                <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <input type="time" value={returnTime} onChange={(e) => setReturnTime(e.target.value)} className={`${inputClass} pl-10`} />
+            <div className="space-y-3">
+              <h3 className="font-heading font-semibold text-sm pt-1">{t("booking.return_date")}</h3>
+              <div className="flex gap-3">
+                {/* Custom Date Picker Return */}
+                <Drawer>
+                  <DrawerTrigger asChild>
+                    <div className={cn(inputClass, "cursor-pointer flex items-center gap-3 flex-1 overflow-hidden")}>
+                      <CalendarIcon className="w-4 h-4 text-muted-foreground shrink-0" />
+                      <span className="truncate text-foreground/80">
+                        {returnDate ? format(returnDate, "PPP", { locale: fr }) : "Sélectionner une date"}
+                      </span>
+                    </div>
+                  </DrawerTrigger>
+                  <DrawerContent className="p-4">
+                    <DrawerHeader className="px-0">
+                      <DrawerTitle className="text-left font-heading">Date de retour</DrawerTitle>
+                    </DrawerHeader>
+                    <div className="flex justify-center p-2">
+                      <Calendar
+                        mode="single"
+                        selected={returnDate}
+                        onSelect={(date) => setReturnDate(date)}
+                        initialFocus
+                        locale={fr}
+                        className="rounded-xl border border-border shadow-sm"
+                      />
+                    </div>
+                    <DrawerFooter className="px-0 pt-4">
+                      <DrawerClose asChild>
+                        <Button className="w-full h-12 rounded-xl">Confirmer la date</Button>
+                      </DrawerClose>
+                    </DrawerFooter>
+                  </DrawerContent>
+                </Drawer>
+
+                {/* Custom Time Picker Return */}
+                <Drawer>
+                  <DrawerTrigger asChild>
+                    <div className={cn(inputClass, "cursor-pointer flex items-center gap-3 flex-1 overflow-hidden")}>
+                      <Clock className="w-4 h-4 text-muted-foreground shrink-0" />
+                      <span className="truncate">{returnTime}</span>
+                    </div>
+                  </DrawerTrigger>
+                  <DrawerContent className="px-4 pb-8">
+                    <DrawerHeader className="px-0">
+                      <DrawerTitle className="text-left font-heading">Heure de retour</DrawerTitle>
+                    </DrawerHeader>
+                    <div className="py-4">
+                      <ClockPicker
+                        value={returnTime}
+                        onChange={(val) => setReturnTime(val)}
+                      />
+                    </div>
+                    <DrawerFooter className="px-0 pt-2 pb-6">
+                      <DrawerClose asChild>
+                        <Button className="w-full h-12 rounded-xl">Confirmer l'heure</Button>
+                      </DrawerClose>
+                    </DrawerFooter>
+                  </DrawerContent>
+                </Drawer>
               </div>
             </div>
           </motion.div>

@@ -44,7 +44,7 @@ const Vehicles = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
 
-  const [favorites, setFavorites] = useState<Set<number>>(() => {
+  const [favorites, setFavorites] = useState<Set<string>>(() => {
     try {
       const stored = localStorage.getItem(FAVORITES_KEY);
       return stored ? new Set(JSON.parse(stored)) : new Set();
@@ -60,25 +60,38 @@ const Vehicles = () => {
   const [dynamicVehicles, setDynamicVehicles] = useState<any[]>([]);
 
   useEffect(() => {
-    (supabase as any)
+    supabase
       .from("vehicles")
       .select("*")
       .order("name", { ascending: true })
-      .then(({ data }: any) => {
+      .then(({ data }) => {
         if (data && data.length > 0) {
-          setDynamicVehicles(data);
+          // Map dynamic vehicles to local images if image_url is a placeholder
+          const mappedData = data.map(dbCar => {
+            const localCar = vehicles.find(v => v.name === dbCar.name);
+            const isPlaceholder = dbCar.image_url && (
+              dbCar.image_url.includes("votre-bucket.supabase.co") ||
+              dbCar.image_url.includes("placeholder")
+            );
+
+            return {
+              ...dbCar,
+              image: isPlaceholder ? (localCar?.image || dbCar.image_url) : (dbCar.image_url || localCar?.image)
+            };
+          });
+          setDynamicVehicles(mappedData);
         }
       });
   }, []);
 
-  const displayVehicles = dynamicVehicles.length > 0 ? dynamicVehicles : vehicles;
+  const displayVehicles = dynamicVehicles.length > 0 ? dynamicVehicles : (vehicles as any[]);
 
-  const toggleFavorite = (index: number, e: React.MouseEvent) => {
+  const toggleFavorite = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     setFavorites((prev) => {
       const next = new Set(prev);
-      if (next.has(index)) next.delete(index);
-      else next.add(index);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
   };
@@ -100,11 +113,11 @@ const Vehicles = () => {
               <div className="relative h-48 bg-secondary/50 flex items-center justify-center overflow-hidden p-4">
                 <img src={car.image_url || car.image} alt={car.name} className="h-full w-full object-contain" />
                 <button
-                  onClick={(e) => toggleFavorite(i, e)}
+                  onClick={(e) => toggleFavorite(car.id || car.name, e)}
                   className="absolute top-3 right-3 w-9 h-9 rounded-full bg-background/75 backdrop-blur-sm flex items-center justify-center shadow active:scale-90 transition-transform"
                 >
                   <Star
-                    className={`w-4 h-4 transition-colors ${favorites.has(i) ? "fill-primary text-primary" : "text-foreground"
+                    className={`w-4 h-4 transition-colors ${favorites.has(car.id || car.name) ? "fill-primary text-primary" : "text-foreground"
                       }`}
                   />
                 </button>
