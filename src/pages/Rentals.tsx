@@ -81,10 +81,16 @@ const Rentals = () => {
                 if (pData) {
                     setPricing(pData.value);
                 } else {
-                    // Fallback pricing
+                    // Fallback pricing (must match t_series/kicks structure used in calculation)
                     setPricing({
-                        abidjan: { day_price: 60000, half_day_price: 40000 },
-                        interieur: { day_price: 85000, half_day_price: 55000 }
+                        t_series: {
+                            abidjan: { base: 45000, long_term: 40000 },
+                            interior: { base: 50000, long_term: 45000, high_km: 60000 }
+                        },
+                        kicks: {
+                            abidjan: { base: 35000, long_term: 30000 },
+                            interior: { base: 40000, long_term: 35000, high_km: 45000 }
+                        }
                     });
                 }
             } catch (error) {
@@ -96,8 +102,14 @@ const Rentals = () => {
                     { id: "v3", name: "Nissan Kicks", category: "Kicks", image_url: taxiVan, rating: 4.7, created_at: "", engine: null, is_available: true, seats: null, speed: null }
                 ]);
                 setPricing({
-                    abidjan: { day_price: 60000, half_day_price: 40000 },
-                    interieur: { day_price: 85000, half_day_price: 55000 }
+                    t_series: {
+                        abidjan: { base: 45000, long_term: 40000 },
+                        interior: { base: 50000, long_term: 45000, high_km: 60000 }
+                    },
+                    kicks: {
+                        abidjan: { base: 35000, long_term: 30000 },
+                        interior: { base: 40000, long_term: 35000, high_km: 45000 }
+                    }
                 });
             }
         };
