@@ -12,7 +12,9 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { cn } from "@/lib/utils";
+import { saveBookingSafe, updateBookingSafe } from "@/lib/supabaseUtils";
+import { cn, isTimeValid, getMinBookingDateTime } from "@/lib/utils";
+import { initializePayment, generateTransactionId } from "@/lib/cinetpay";
 import {
     Drawer,
     DrawerClose,
@@ -111,14 +113,15 @@ const Rentals = () => {
     };
 
     // Form State
+    const minDateTime = getMinBookingDateTime();
     const [formData, setFormData] = useState({
         vehicleId: "",
         fullName: "",
         phone: "",
         email: user?.email || "",
-        startDate: "",
-        endDate: "",
-        startTime: "08:00",
+        startDate: format(minDateTime.date, 'yyyy-MM-dd'),
+        endDate: format(new Date(minDateTime.date.getTime() + 86400000), 'yyyy-MM-dd'),
+        startTime: minDateTime.time,
         endTime: "18:00",
         isHalfDay: false,
         zone: "Abidjan" as string,
@@ -140,8 +143,6 @@ const Rentals = () => {
                         ...prev,
                         fullName: data.full_name || "",
                         phone: data.phone || "",
-                        startDate: new Date().toISOString().split('T')[0],
-                        endDate: new Date(Date.now() + 86400000).toISOString().split('T')[0] // Default to tomorrow
                     }));
                 }
             });
@@ -196,8 +197,24 @@ const Rentals = () => {
     }, [formData, selectedVehicle, pricing]);
 
     const handleBooking = async () => {
-        if (!formData.fullName || !formData.phone || !formData.startDate || !formData.endDate) {
-            toast.error("Veuillez remplir tous les champs obligatoires");
+        if (!user) {
+            toast.error("Vous devez être connecté pour effectuer une réservation.");
+            return;
+        }
+
+        if (!formData.fullName) { toast.error("Veuillez saisir votre nom complet"); return; }
+        if (!formData.phone) { toast.error("Veuillez saisir votre numéro de téléphone"); return; }
+        if (!formData.startDate) { toast.error("Veuillez sélectionner une date de départ"); return; }
+        if (!formData.endDate) { toast.error("Veuillez sélectionner une date de retour"); return; }
+        if (formData.zone === "Intérieur du pays" && (!formData.kilometers || formData.kilometers === "0")) {
+            toast.error("Veuillez renseigner le kilométrage estimé pour un trajet à l'intérieur");
+            return;
+        }
+
+        // Time Validation
+        const timeCheck = isTimeValid(new Date(formData.startDate), formData.startTime);
+        if (!timeCheck.isValid) {
+            toast.error(timeCheck.error);
             return;
         }
 
@@ -206,7 +223,85 @@ const Rentals = () => {
             return;
         }
 
-        const msg = `Bonjour, je souhaite louer un véhicule.
+        const depositAmount = calculation ? Math.round(calculation.total * 0.3) : 0;
+        let bookingId = "";
+
+        // 1. Check Availability
+        try {
+            const { data: isAvailable, error: availError } = await (supabase as any).rpc('check_vehicle_availability', {
+                p_vehicle_id: selectedVehicle?.id || "",
+                p_pickup_date: formData.startDate,
+                p_return_date: formData.endDate
+            });
+            if (availError) throw availError;
+            if (isAvailable === false) {
+                toast.error("Désolé, ce véhicule n'est plus disponible pour ces dates.");
+                return;
+            }
+        } catch (error) {
+            console.error("Error checking availability:", error);
+        }
+
+        // 2. Save to Supabase
+        const { data: savedBooking, error: saveError } = await saveBookingSafe({
+            user_id: user?.id || null,
+            vehicle_id: selectedVehicle?.id,
+            vehicle_name: selectedVehicle?.name || "Véhicule",
+            pickup_address: `Agence / Zone: ${formData.zone}`,
+            destination: `Location - ${formData.zone}`,
+            pickup_date: formData.startDate,
+            pickup_time: formData.startTime,
+            return_date: formData.endDate,
+            return_time: formData.endTime,
+            travelers: 1,
+            total_price: calculation?.total,
+            deposit_amount: depositAmount,
+            booking_type: "rental",
+            status: "pending_payment",
+            payment_status: "pending",
+        });
+
+        if (!saveError && savedBooking) {
+            bookingId = savedBooking.id;
+        } else if (saveError || !savedBooking) {
+            console.error("Error saving booking:", saveError);
+            toast.error(`Erreur d'enregistrement : ${saveError?.message || 'Inconnu'}`);
+            return;
+        }
+
+        // 3. Initiate Payment
+        try {
+            const paymentData = {
+                transaction_id: generateTransactionId(),
+                amount: depositAmount,
+                currency: "XOF",
+                description: `Acompte 30% - Location #${bookingId.slice(0, 8).toUpperCase()}`,
+                customer_name: formData.fullName.split(" ")[0] || "Customer",
+                customer_surname: formData.fullName.split(" ").slice(1).join(" ") || formData.fullName,
+                customer_phone_number: formData.phone,
+                customer_email: formData.email || "customer@example.com",
+                customer_address: `Zone: ${formData.zone}`,
+                customer_city: "Abidjan",
+                customer_country: "CI",
+                customer_state: "CI",
+                customer_zip_code: "00225",
+            };
+
+            const paymentResult: any = await initializePayment(paymentData);
+
+            await updateBookingSafe(bookingId, {
+                status: "pending_payment",
+                payment_status: "pending",
+                transaction_id: paymentData.transaction_id
+            });
+            toast.success("Page de paiement ouverte dans un nouvel onglet !");
+        } catch (error: any) {
+            console.error("Payment error:", error);
+            toast.error(error.message || "Le paiement a échoué.");
+            return;
+        }
+
+        const msg = `Bonjour, je souhaite confirmer ma location.${bookingId ? `\nRéférence : #${bookingId.slice(0, 8).toUpperCase()}` : ''}
 
 *NOM :* ${formData.fullName}
 *TÉLÉPHONE :* ${formData.phone}
@@ -217,32 +312,12 @@ const Rentals = () => {
 *DÉPART :* ${formData.startDate} à ${formData.startTime}
 *RETOUR :* ${formData.endDate} à ${formData.endTime}
 *DURÉE :* ${calculation?.days} jour(s)
-${formData.zone === 'Intérieur du pays' ? `*KM ESTIMÉ :* ${formData.kilometers} km` : ''}
 
-*PRIX ESTIMÉ :* ${calculation?.formattedTotal}
+*STATUT PAIEMENT :* Acompte de 30% (${depositAmount.toLocaleString('fr-FR')} F) PAYÉ ✅
 
-Merci de confirmer la disponibilité.`;
+Merci de confirmer la mise à disposition.`;
 
         const encodedMsg = encodeURIComponent(msg);
-
-        // Save to Supabase if user is logged in
-        if (user) {
-            await supabase.from("bookings").insert({
-                user_id: user.id,
-                vehicle_name: selectedVehicle?.name || "Véhicule",
-                pickup_address: `Agence / Zone: ${formData.zone}`,
-                destination: `Location - ${formData.zone}`,
-                pickup_date: formData.startDate,
-                pickup_time: formData.startTime,
-                return_date: formData.endDate,
-                return_time: formData.endTime,
-                travelers: 1,
-                total_price: calculation?.total,
-                booking_type: "rental",
-                status: "envoyée",
-            });
-        }
-
         window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${encodedMsg}`, '_blank');
         toast.success("Redirection vers WhatsApp...");
         navigate("/success", {
@@ -258,7 +333,9 @@ Merci de confirmer la disponibilité.`;
                     zone: formData.zone,
                     vehicleName: selectedVehicle?.name,
                     days: calculation?.days,
-                    total: calculation?.total
+                    total: calculation?.total,
+                    deposit: depositAmount,
+                    id: bookingId
                 }
             }
         });
@@ -496,6 +573,7 @@ Merci de confirmer la disponibilité.`;
                                                                 onSelect={(date) => setFormData(prev => ({ ...prev, startDate: date ? date.toISOString().split('T')[0] : "" }))}
                                                                 initialFocus
                                                                 locale={fr}
+                                                                disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
                                                                 className="rounded-xl border border-border shadow-sm"
                                                             />
                                                         </div>
@@ -562,6 +640,7 @@ Merci de confirmer la disponibilité.`;
                                                                 onSelect={(date) => setFormData(prev => ({ ...prev, endDate: date ? date.toISOString().split('T')[0] : "" }))}
                                                                 initialFocus
                                                                 locale={fr}
+                                                                disabled={(date) => date < (formData.startDate ? new Date(formData.startDate) : new Date(new Date().setHours(0, 0, 0, 0)))}
                                                                 className="rounded-xl border border-border shadow-sm"
                                                             />
                                                         </div>
@@ -646,13 +725,17 @@ Merci de confirmer la disponibilité.`;
                                         <span className="text-sm font-heading font-bold">{calculation.days} {calculation.days > 1 ? 'jours' : 'jour'}</span>
                                     </div>
 
-                                    <div className="pt-2">
+                                    <div className="pt-2 border-t border-border flex flex-col gap-2">
                                         <div className="flex justify-between items-center">
                                             <span className="text-base font-heading font-semibold">Total Estimé</span>
                                             <div className="text-right">
                                                 <span className="text-xl font-heading font-bold text-primary">{calculation.formattedTotal}</span>
                                                 <p className="text-[10px] text-muted-foreground">Soit {new Intl.NumberFormat('fr-FR').format(calculation.pricePerDay)} J / jour</p>
                                             </div>
+                                        </div>
+                                        <div className="flex justify-between items-center bg-primary/5 p-2 rounded-xl">
+                                            <span className="text-xs font-bold text-muted-foreground uppercase">Acompte 30%</span>
+                                            <span className="text-sm font-bold text-primary">{(Math.round(calculation.total * 0.3)).toLocaleString('fr-FR')} F</span>
                                         </div>
                                     </div>
                                 </div>

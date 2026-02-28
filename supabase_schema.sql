@@ -13,6 +13,7 @@ CREATE TABLE public.profiles (
 CREATE TABLE public.bookings (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+    vehicle_id UUID REFERENCES public.vehicles(id),
     vehicle_name TEXT NOT NULL,
     pickup_address TEXT,
     destination TEXT NOT NULL,
@@ -22,8 +23,11 @@ CREATE TABLE public.bookings (
     return_time TIME,
     travelers INTEGER DEFAULT 1,
     total_price NUMERIC,
+    deposit_amount NUMERIC DEFAULT 0,
+    transaction_id TEXT,
     booking_type TEXT, -- 'airport', 'hourly', 'rental'
-    status TEXT DEFAULT 'envoyée' NOT NULL,
+    status TEXT DEFAULT 'pending_payment' NOT NULL,
+    payment_status TEXT DEFAULT 'pending',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
@@ -96,9 +100,9 @@ CREATE POLICY "Anyone can view vehicles" ON public.vehicles FOR SELECT USING (tr
 -- Insert initial fleet
 INSERT INTO public.vehicles (name, category, image_url, rating, speed, seats, engine)
 VALUES 
-('Bestune T55', 'T-Series', 'https://votre-bucket.supabase.co/storage/v1/object/public/vehicles/taxi-sedan.png', 4.8, '190 km/h', '5 Places', '1.5L Turbo'),
-('Bestune T77', 'T-Series', 'https://votre-bucket.supabase.co/storage/v1/object/public/vehicles/taxi-suv.png', 4.9, '192 km/h', '5 Places', '1.5L Turbo'),
-('Nissan Kicks', 'Kicks', 'https://votre-bucket.supabase.co/storage/v1/object/public/vehicles/taxi-van.png', 4.7, '180 km/h', '5 Places', '1.6L Essence');
+('Bestune T55', 'T-Series', '/vehicles/taxi-sedan.png', 4.8, '190 km/h', '5 Places', '1.5L Turbo'),
+('Bestune T77', 'T-Series', '/vehicles/taxi-suv.png', 4.9, '192 km/h', '5 Places', '1.5L Turbo'),
+('Nissan Kicks', 'Kicks', '/vehicles/taxi-van.png', 4.7, '180 km/h', '5 Places', '1.6L Essence');
 
 -- App Settings for global constants
 CREATE TABLE public.app_settings (
@@ -171,5 +175,33 @@ CREATE OR REPLACE FUNCTION public.delete_user()
 RETURNS void AS $$
 BEGIN
   DELETE FROM auth.users WHERE id = auth.uid();
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Function to check vehicle availability
+CREATE OR REPLACE FUNCTION public.check_vehicle_availability(
+    p_vehicle_id UUID,
+    p_pickup_date DATE,
+    p_return_date DATE DEFAULT NULL
+)
+RETURNS BOOLEAN AS $$
+DECLARE
+    is_available BOOLEAN;
+BEGIN
+    SELECT NOT EXISTS (
+        SELECT 1 
+        FROM public.bookings
+        WHERE vehicle_id = p_vehicle_id
+        AND status = 'confirmed'
+        AND (
+            (p_pickup_date BETWEEN pickup_date AND COALESCE(return_date, pickup_date))
+            OR 
+            (p_return_date IS NOT NULL AND p_return_date BETWEEN pickup_date AND COALESCE(return_date, pickup_date))
+            OR
+            (pickup_date BETWEEN p_pickup_date AND COALESCE(p_return_date, p_pickup_date))
+        )
+    ) INTO is_available;
+
+    RETURN is_available;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;

@@ -51,22 +51,7 @@ const popularVehicles = [
   },
 ];
 
-const locations = [
-  "Aéroport Félix Houphouët-Boigny",
-  "Abobo",
-  "Adjamé",
-  "Attécoubé",
-  "Anyama",
-  "Bingerville",
-  "Cocody",
-  "Koumassi",
-  "Marcory",
-  "Plateau",
-  "Port-Bouët",
-  "Songon",
-  "Treichville",
-  "Yopougon"
-];
+// locations are now fetched from Supabase
 
 interface Vehicle {
   name: string;
@@ -101,8 +86,10 @@ const Index = () => {
   const displayName = profile?.full_name?.split(" ")[0] || user?.email?.split("@")[0] || "Voyageur";
 
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [locations, setLocations] = useState<string[]>([]);
 
   useEffect(() => {
+    // Fetch vehicles
     supabase
       .from("vehicles")
       .select("*")
@@ -113,6 +100,17 @@ const Index = () => {
           setVehicles(data as Vehicle[]);
         }
       });
+
+    // Fetch communes
+    supabase
+      .from("communes")
+      .select("name")
+      .order("display_order", { ascending: true })
+      .then(({ data }) => {
+        if (data && data.length > 0) {
+          setLocations(data.map(c => c.name));
+        }
+      });
   }, []);
 
   const handleDestinationSearch = () => {
@@ -121,6 +119,19 @@ const Index = () => {
     } else {
       navigate("/vehicles");
     }
+  };
+
+  const getVehicleImage = (vehicle: Vehicle) => {
+    if (vehicle.image_url && !vehicle.image_url.includes('votre-bucket.supabase.co')) {
+      return vehicle.image_url;
+    }
+
+    const name = vehicle.name.toLowerCase();
+    if (name.includes('t55')) return taxiSedan;
+    if (name.includes('t77')) return taxiSuv;
+    if (name.includes('kicks')) return taxiVan;
+
+    return taxiSedan; // Fallback
   };
 
   return (
@@ -256,7 +267,7 @@ const Index = () => {
                   className="relative h-48 bg-secondary/50 flex items-center justify-center p-6"
                 >
                   <img
-                    src={car.image_url || car.image}
+                    src={getVehicleImage(car)}
                     alt={car.name}
                     className="w-full h-full object-contain transform group-hover:scale-105 transition-transform duration-500"
                   />

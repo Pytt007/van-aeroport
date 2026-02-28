@@ -23,17 +23,19 @@ git push
 
 Si vous voulez travailler sur votre projet depuis un nouveau PC :
 
-### Option A : Via GitHub (Recommandé)
-1. **Cloner le projet** (une seule fois) :
+### Option A : Via GitHub (Le plus sûr)
+1. **Sur le PC actuel** : Sauvegardez tout avec : 
+   `git add . ; git commit -m "Sync avant changement PC" ; git push`
+2. **Sur le nouveau PC** : Téléchargez le projet :
    `git clone https://github.com/Pytt007/vanaeroport.git`
-2. **Installer les outils** (node_modules) :
-   `npm install`
-3. **Recréer le fichier `.env`** avec vos clés Supabase. 
+3. **Crucial** : Copiez le fichier `.env` du PC 1 vers le PC 2 (Git ne le prend pas pour des raisons de sécurité).
+4. **Installez** : `npm install` puis `npm run dev`.
 
-### Option B : Via Copie Manuelle (Clé USB)
-1. Copiez tout le dossier (incluant le dossier caché `.git`).
-2. **Important** : Supprimez le dossier `node_modules` sur l'ancien PC avant de copier pour aller plus vite.
-3. Sur le nouveau PC, lancez `npm install`.
+### Option B : Via Clé USB (Le plus rapide)
+1. Copiez tout le dossier **Vanaeroport**.
+2. **Astuce** : Supprimez le dossier `node_modules` (très lourd) avant de copier.
+3. Sur le nouveau PC, ouvrez le dossier et faites `npm install`.
+4. Le fichier `.env` sera déjà là car vous avez copié tout le dossier.
 
 ---
 

@@ -9,6 +9,8 @@ import { generateReceiptPDF } from "@/utils/receiptGenerator";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import BoardingPass from "@/components/BoardingPass";
+import html2canvas from "html2canvas";
 
 const Success = () => {
     const { t } = useTranslation();
@@ -19,6 +21,7 @@ const Success = () => {
     const [downloading, setDownloading] = useState(false);
     const [saving, setSaving] = useState(false);
     const [savedAddresses, setSavedAddresses] = useState<string[]>([]);
+    const [isCapturing, setIsCapturing] = useState(false);
 
     const handleSaveFavorite = async (address: string, label: string) => {
         if (!user || !address) return;
@@ -47,13 +50,38 @@ const Success = () => {
         }
         setDownloading(true);
         try {
-            const receiptId = Math.random().toString(36).substring(2, 8).toUpperCase();
+            const receiptId = data.id || Math.random().toString(36).substring(2, 8).toUpperCase();
             await generateReceiptPDF(receiptId, data);
             toast.success("Votre reçu a été téléchargé.");
         } catch (error) {
             toast.error("Échec du téléchargement du reçu.");
         } finally {
             setDownloading(false);
+        }
+    };
+
+    const handleCaptureBoardingPass = async () => {
+        const element = document.getElementById("boarding-pass-capture");
+        if (!element) return;
+
+        setIsCapturing(true);
+        try {
+            const canvas = await html2canvas(element, {
+                scale: 3,
+                backgroundColor: null,
+                logging: false,
+                useCORS: true
+            });
+            const link = document.createElement("a");
+            link.download = `Vanaeroport_Ticket_${data?.id?.slice(0, 8) || 'Res'}.png`;
+            link.href = canvas.toDataURL("image/png");
+            link.click();
+            toast.success("Carte d'embarquement enregistrée !");
+        } catch (error) {
+            console.error("Capture failed", error);
+            toast.error("Échec de la capture.");
+        } finally {
+            setIsCapturing(false);
         }
     };
 
@@ -79,9 +107,22 @@ const Success = () => {
                         <h1 className="text-3xl font-heading font-bold text-foreground">
                             {type === "rental" ? "Demande envoyée !" : "Réservation transmise !"}
                         </h1>
-                        <p className="text-muted-foreground font-body leading-relaxed">
+                        <p className="text-muted-foreground font-body leading-relaxed mb-6">
                             Votre demande a été envoyée avec succès sur WhatsApp. Notre équipe va vous répondre dans quelques instants pour finaliser la confirmation.
                         </p>
+
+                        {!data && (
+                            <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-2xl mb-6">
+                                <p className="text-amber-500 text-xs font-medium">Note : Effectuez une réservation depuis l'application pour générer votre ticket personnalisé ici.</p>
+                            </div>
+                        )}
+
+                        {/* Boarding Pass Component */}
+                        {data && (
+                            <div className="pb-8 w-full">
+                                <BoardingPass data={data} />
+                            </div>
+                        )}
                     </motion.div>
 
                     {/* WhatsApp Hint */}
@@ -152,6 +193,17 @@ const Success = () => {
                         transition={{ delay: 0.6 }}
                         className="mt-8 w-full max-w-sm space-y-3"
                     >
+                        {data && (
+                            <Button
+                                onClick={handleCaptureBoardingPass}
+                                disabled={isCapturing}
+                                className="w-full h-14 rounded-2xl bg-neutral-900 border border-white/10 text-white font-heading font-semibold text-sm tracking-wide shadow-xl group mb-2"
+                            >
+                                {isCapturing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <FileText className="w-4 h-4 mr-2 text-primary" />}
+                                Enregistrer mon Ticket (PNG)
+                            </Button>
+                        )}
+
                         <Button
                             onClick={() => navigate("/")}
                             className="w-full h-14 rounded-2xl bg-primary text-primary-foreground font-heading font-semibold text-sm tracking-wide shadow-lg group"

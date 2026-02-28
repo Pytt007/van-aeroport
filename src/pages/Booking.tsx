@@ -11,9 +11,11 @@ import SwipeButton from "@/components/SwipeButton";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import { saveBookingSafe, updateBookingSafe } from "@/lib/supabaseUtils";
 import { Database } from "@/integrations/supabase/types";
 import { toast } from "sonner";
-import { cn } from "@/lib/utils";
+import { cn, isTimeValid, getMinBookingDateTime } from "@/lib/utils";
+import { initializePayment, generateTransactionId } from "@/lib/cinetpay";
 import { useFavorites } from "@/hooks/useFavorites";
 import ClockPicker from "@/components/ClockPicker";
 import {
@@ -180,11 +182,12 @@ const Booking = () => {
     setEstimatedPrice(calculateDynamicPrice(pickup, destination));
   }, [pickup, destination, calculateDynamicPrice]);
 
+  const minDateTime = getMinBookingDateTime();
   const [lastName, setLastName] = useState("");
   const [firstName, setFirstName] = useState("");
   const [phone, setPhone] = useState("");
-  const [pickupDate, setPickupDate] = useState<Date | undefined>(new Date());
-  const [pickupTime, setPickupTime] = useState("08:00");
+  const [pickupDate, setPickupDate] = useState<Date | undefined>(minDateTime.date);
+  const [pickupTime, setPickupTime] = useState(minDateTime.time);
   const [returnDate, setReturnDate] = useState<Date | undefined>(undefined);
   const [returnTime, setReturnTime] = useState("18:00");
   const [travelers, setTravelers] = useState("1");
@@ -217,47 +220,128 @@ const Booking = () => {
   };
 
   const handleConfirm = async () => {
-    if (!destination || !lastName || !firstName || !phone || !pickupDate || !pickupTime) {
-      toast.error(t("common.error"));
+    if (!user) {
+      toast.error("Vous devez être connecté pour effectuer une réservation.");
       return;
     }
+
+    if (!firstName) { toast.error("Veuillez saisir votre prénom"); return; }
+    if (!lastName) { toast.error("Veuillez saisir votre nom"); return; }
+    if (!phone) { toast.error("Veuillez saisir votre numéro de téléphone"); return; }
+    if (!pickup) { toast.error("Veuillez sélectionner un lieu de prise en charge"); return; }
+    if (!destination) { toast.error("Veuillez sélectionner une destination"); return; }
+    if (!pickupDate) { toast.error("Veuillez sélectionner une date de départ"); return; }
+    if (!pickupTime) { toast.error("Veuillez sélectionner une heure de départ"); return; }
     if (!vehicle) {
       toast.error(t("booking.choose_vehicle"));
       navigate("/vehicles");
       return;
     }
 
-    // Save to Supabase if user is logged in (optional but good for history)
-    if (user) {
-      await supabase.from("bookings").insert({
-        user_id: user.id,
-        vehicle_name: vehicle.name,
-        pickup_address: pickup,
-        destination,
-        pickup_date: pickupDate,
-        pickup_time: pickupTime,
-        return_date: returnDate || null,
-        return_time: returnTime || null,
-        travelers: parseInt(travelers),
-        total_price: estimatedPrice,
-        booking_type: "airport",
-        status: "envoyée",
-      });
+    // Time Validation
+    const timeCheck = isTimeValid(pickupDate, pickupTime);
+    if (!timeCheck.isValid) {
+      toast.error(timeCheck.error);
+      return;
     }
 
-    // Generate WhatsApp Message
-    const message = `Bonjour, je souhaite réserver un van.
+    // 1. Check Availability via RPC
+    try {
+      const { data: isAvailable, error: checkError } = await supabase.rpc('check_vehicle_availability', {
+        p_vehicle_id: vehicle.id,
+        p_pickup_date: format(pickupDate, 'yyyy-MM-dd'),
+        p_return_date: returnDate ? format(returnDate, 'yyyy-MM-dd') : null
+      });
 
-*NOM :* ${lastName} ${firstName}
+      if (checkError) throw checkError;
+
+      if (isAvailable === false) {
+        toast.error("Désolé, ce véhicule est déjà réservé pour ces dates.");
+        return;
+      }
+    } catch (error) {
+      console.error("Error checking availability:", error);
+      // We continue but log the error if RPC fails (e.g. function not yet created)
+    }
+
+    const depositAmount = Math.round(estimatedPrice * 0.3);
+
+    // 2. Save to Supabase
+    const { data: savedBooking, error: saveError } = await saveBookingSafe({
+      user_id: user?.id || null,
+      vehicle_id: vehicle.id,
+      vehicle_name: vehicle.name,
+      pickup_address: pickup,
+      destination,
+      pickup_date: format(pickupDate, 'yyyy-MM-dd'),
+      pickup_time: pickupTime,
+      return_date: returnDate ? format(returnDate, 'yyyy-MM-dd') : null,
+      return_time: returnTime || null,
+      travelers: parseInt(travelers),
+      total_price: estimatedPrice,
+      deposit_amount: depositAmount,
+      booking_type: "airport",
+      status: "pending_payment",
+      payment_status: "pending",
+    });
+
+    if (saveError || !savedBooking) {
+      console.error("Error saving booking:", saveError);
+      toast.error(`Erreur d'enregistrement : ${saveError?.message || 'Inconnu'}`);
+      return;
+    }
+
+    const bookingId = savedBooking.id;
+
+    // 3. Initiate Payment
+    try {
+      const paymentData = {
+        transaction_id: generateTransactionId(),
+        amount: depositAmount,
+        currency: "XOF",
+        description: `Acompte 30% - Réservation #${bookingId.slice(0, 8).toUpperCase()}`,
+        customer_name: firstName,
+        customer_surname: lastName,
+        customer_phone_number: phone,
+        customer_email: user?.email || "customer@example.com",
+        customer_address: pickup,
+        customer_city: "Abidjan",
+        customer_country: "CI",
+        customer_state: "CI",
+        customer_zip_code: "00225",
+      };
+
+      const paymentResult: any = await initializePayment(paymentData);
+
+      // With redirect method, payment is opened in new tab (PENDING status)
+      // Update booking with transaction_id and mark as pending
+      await updateBookingSafe(bookingId, {
+        status: "pending_payment",
+        payment_status: "pending",
+        transaction_id: paymentData.transaction_id
+      });
+
+      toast.success("Page de paiement ouverte dans un nouvel onglet !");
+    } catch (error: any) {
+      console.error("Payment error:", error);
+      toast.error(error.message || "Le paiement a échoué ou a été annulé.");
+      return;
+    }
+
+    // 5. Generate WhatsApp Message
+    const message = `Bonjour, je souhaite confirmer ma réservation.${bookingId ? `\nRéférence : #${bookingId.slice(0, 8).toUpperCase()}` : ''}
+
+*PASSAGER :* ${firstName} ${lastName}
 *TÉLÉPHONE :* ${phone}
 *VÉHICULE :* ${vehicle.name}
-*DATE :* ${pickupDate ? format(pickupDate, 'dd/MM/yyyy') : '--'}
-*HEURE :* ${pickupTime}
 *DÉPART :* ${pickup}
 *DESTINATION :* ${destination}
-*PRIX ESTIMÉ :* ${estimatedPrice.toLocaleString('fr-FR')} F CFA
+*DATE :* ${format(pickupDate, 'dd/MM/yyyy')} à ${pickupTime}
+*PASSAGERS :* ${travelers}
 
-Merci de confirmer la disponibilité.`;
+*STATUT PAIEMENT :* Acompte de 30% (${depositAmount.toLocaleString('fr-FR')} F) PAYÉ ✅
+
+Merci de confirmer la prise en charge.`;
 
     const encodedMessage = encodeURIComponent(message);
     const whatsappNumber = CONFIG.WHATSAPP_NUMBER;
@@ -275,7 +359,9 @@ Merci de confirmer la disponibilité.`;
           destination,
           vehicleName: vehicle.name,
           total: estimatedPrice,
-          travelers
+          deposit: depositAmount,
+          travelers,
+          id: bookingId
         }
       }
     });
@@ -606,6 +692,7 @@ Merci de confirmer la disponibilité.`;
                         onSelect={(date) => setPickupDate(date)}
                         initialFocus
                         locale={fr}
+                        disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
                         className="rounded-xl border border-border shadow-sm"
                       />
                     </div>
@@ -669,6 +756,7 @@ Merci de confirmer la disponibilité.`;
                         onSelect={(date) => setReturnDate(date)}
                         initialFocus
                         locale={fr}
+                        disabled={(date) => (pickupDate ? date < pickupDate : date < new Date(new Date().setHours(0, 0, 0, 0)))}
                         className="rounded-xl border border-border shadow-sm"
                       />
                     </div>
@@ -763,12 +851,18 @@ Merci de confirmer la disponibilité.`;
               </span>
               <span className="text-sm font-heading font-semibold text-primary">F CFA</span>
             </div>
-            <div className="pt-2 border-t border-primary/10 flex flex-col gap-1">
-              <p className="text-[10px] text-muted-foreground font-body italic">
-                * Frais de parking et heures d'attente non inclus
+            <div className="pt-2 border-t border-primary/20 flex flex-col gap-2">
+              <div className="flex justify-between items-center px-2">
+                <span className="text-[10px] text-muted-foreground uppercase font-bold">Acompte 30%</span>
+                <span className="text-sm font-bold text-primary">
+                  {estimatedPrice > 0 ? (Math.round(estimatedPrice * 0.3)).toLocaleString('fr-FR') : "--"} F
+                </span>
+              </div>
+              <p className="text-[10px] text-muted-foreground font-body italic leading-tight">
+                * Frais de parking et frais d'attente non inclus
               </p>
-              <p className="text-[10px] text-muted-foreground font-body">
-                Redirection vers WhatsApp pour confirmation
+              <p className="text-[10px] text-primary font-body font-bold">
+                Paiement sécurisé de l'acompte après validation
               </p>
             </div>
           </motion.div>

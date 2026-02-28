@@ -12,9 +12,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import { saveBookingSafe, updateBookingSafe } from "@/lib/supabaseUtils";
 import { Database } from "@/integrations/supabase/types";
-import { cn } from "@/lib/utils";
+import { cn, isTimeValid, getMinBookingDateTime } from "@/lib/utils";
 import { useFavorites } from "@/hooks/useFavorites";
+import { initializePayment, generateTransactionId } from "@/lib/cinetpay";
 import {
     Home as HomeIcon,
     Briefcase,
@@ -119,13 +121,14 @@ const RideBooking = () => {
     };
 
     // Form State
+    const minDateTime = getMinBookingDateTime();
     const [formData, setFormData] = useState({
         vehicleId: "",
         fullName: "",
         phone: "",
         email: user?.email || "",
-        date: "",
-        startTime: "08:00",
+        date: format(minDateTime.date, 'yyyy-MM-dd'),
+        startTime: minDateTime.time,
         hours: "1",
         pickup: "",
         destination: "",
@@ -145,8 +148,7 @@ const RideBooking = () => {
                     setFormData(prev => ({
                         ...prev,
                         fullName: data.full_name || "",
-                        phone: data.phone || "",
-                        date: new Date().toISOString().split('T')[0] // Initialize with today's date string if empty
+                        phone: data.phone || ""
                     }));
                 }
             });
@@ -181,48 +183,116 @@ const RideBooking = () => {
     }, [formData, selectedVehicle, pricing]);
 
     const handleBooking = async () => {
-        if (!formData.fullName || !formData.phone || !formData.date || !formData.startTime || !formData.pickup) {
-            toast.error("Veuillez remplir tous les champs obligatoires");
+        if (!user) {
+            toast.error("Vous devez être connecté pour effectuer une réservation.");
             return;
         }
 
-        const msg = `Bonjour, je souhaite réserver une course.
+        if (!formData.fullName) { toast.error("Veuillez saisir votre nom complet"); return; }
+        if (!formData.phone) { toast.error("Veuillez saisir votre numéro de téléphone"); return; }
+        if (!formData.pickup) { toast.error("Veuillez saisir le lieu de prise en charge"); return; }
+        if (!formData.date) { toast.error("Veuillez sélectionner une date"); return; }
+        if (!formData.startTime) { toast.error("Veuillez sélectionner une heure de départ"); return; }
 
-*NOM :* ${formData.fullName}
-*TÉLÉPHONE :* ${formData.phone}
-*EMAIL :* ${formData.email || 'Non renseigné'}
-
-*VÉHICULE :* ${selectedVehicle?.name}
-*DATE :* ${formData.date}
-*HEURE DE DÉBUT :* ${formData.startTime}
-*DURÉE :* ${formData.hours} heure(s)
-*PRISE EN CHARGE :* ${formData.pickup}
-*DESTINATION :* ${formData.destination || 'Non spécifiée'}
-
-*PRIX ESTIMÉ :* ${calculation?.formattedTotal}
-
-${formData.comment ? `*COMMENTAIRE :* ${formData.comment}` : ''}
-
-Merci de confirmer la disponibilité.`;
-
-        const encodedMsg = encodeURIComponent(msg);
-
-        // Save to Supabase if user is logged in
-        if (user) {
-            await supabase.from("bookings").insert({
-                user_id: user.id,
-                vehicle_name: selectedVehicle?.name || "Véhicule",
-                pickup_address: formData.pickup,
-                destination: formData.destination || "Course urbaine",
-                pickup_date: formData.date,
-                pickup_time: formData.startTime,
-                travelers: 1,
-                total_price: calculation?.total,
-                booking_type: "hourly",
-                status: "envoyée",
-            });
+        // Time Validation
+        const timeCheck = isTimeValid(new Date(formData.date), formData.startTime);
+        if (!timeCheck.isValid) {
+            toast.error(timeCheck.error);
+            return;
         }
 
+        const depositAmount = calculation ? Math.round(calculation.total * 0.3) : 0;
+        let bookingId = "";
+
+        // 1. Check Availability (Optional for rides, but good for consistency)
+        try {
+            const { data: isAvailable, error: availError } = await supabase.rpc('check_vehicle_availability', {
+                p_vehicle_id: selectedVehicle?.id || "",
+                p_pickup_date: formData.date
+            });
+            if (availError) throw availError;
+            if (isAvailable === false) {
+                toast.error("Désolé, ce véhicule n'est plus disponible pour cette date.");
+                return;
+            }
+        } catch (error) {
+            console.error("Error checking availability:", error);
+        }
+
+        // 2. Save to Supabase
+        const { data: savedBooking, error: saveError } = await saveBookingSafe({
+            user_id: user?.id || null,
+            vehicle_id: selectedVehicle?.id,
+            vehicle_name: selectedVehicle?.name || "Véhicule",
+            pickup_address: formData.pickup,
+            destination: formData.destination || "Course urbaine",
+            pickup_date: formData.date,
+            pickup_time: formData.startTime,
+            travelers: 1,
+            total_price: calculation?.total,
+            deposit_amount: depositAmount,
+            booking_type: "hourly",
+            status: "pending_payment",
+            payment_status: "pending",
+        });
+
+        if (!saveError && savedBooking) {
+            bookingId = savedBooking.id;
+        } else if (saveError || !savedBooking) {
+            console.error("Error saving booking:", saveError);
+            toast.error(`Erreur d'enregistrement : ${saveError?.message || 'Inconnu'}`);
+            return;
+        }
+
+        // 3. Initiate Payment
+        try {
+            const paymentData = {
+                transaction_id: generateTransactionId(),
+                amount: depositAmount,
+                currency: "XOF",
+                description: `Acompte 30% - Course #${bookingId.slice(0, 8).toUpperCase()}`,
+                customer_name: formData.fullName.split(" ")[0] || "Customer",
+                customer_surname: formData.fullName.split(" ").slice(1).join(" ") || formData.fullName,
+                customer_phone_number: formData.phone,
+                customer_email: user?.email || "customer@example.com",
+                customer_address: formData.pickup,
+                customer_city: "Abidjan",
+                customer_country: "CI",
+                customer_state: "CI",
+                customer_zip_code: "00225",
+            };
+
+            const paymentResult: any = await initializePayment(paymentData);
+
+            await updateBookingSafe(bookingId, {
+                status: "pending_payment",
+                payment_status: "pending",
+                transaction_id: paymentData.transaction_id
+            });
+            toast.success("Page de paiement ouverte dans un nouvel onglet !");
+        } catch (error: any) {
+            console.error("Payment error:", error);
+            toast.error(error.message || "Le paiement a échoué.");
+            return;
+        }
+
+        const msg = `Bonjour, je souhaite confirmer ma course.${bookingId ? `\nRéférence : #${bookingId.slice(0, 8).toUpperCase()}` : ''}
+ 
+ *NOM :* ${formData.fullName}
+ *TÉLÉPHONE :* ${formData.phone}
+ *VÉHICULE :* ${selectedVehicle?.name}
+ *DATE :* ${formData.date}
+ *HEURE :* ${formData.startTime}
+ *PRISE EN CHARGE :* ${formData.pickup}
+ *DESTINATION :* ${formData.destination || 'Non spécifiée'}
+ 
+ *STATUT PAIEMENT :* Acompte de 30% (${depositAmount.toLocaleString('fr-FR')} F) PAYÉ ✅
+ 
+ ${formData.comment ? `*COMMENTAIRE :* ${formData.comment}` : ''}
+ 
+ Merci de confirmer la prise en charge.`;
+
+        const encodedMsg = encodeURIComponent(msg);
         window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${encodedMsg}`, '_blank');
         toast.success("Redirection vers WhatsApp...");
         navigate("/success", {
@@ -237,7 +307,9 @@ Merci de confirmer la disponibilité.`;
                     pickup: formData.pickup,
                     destination: formData.destination,
                     vehicleName: selectedVehicle?.name,
-                    total: calculation?.total
+                    total: calculation?.total,
+                    deposit: depositAmount,
+                    id: bookingId
                 }
             }
         });
@@ -395,6 +467,7 @@ Merci de confirmer la disponibilité.`;
                                                             onSelect={(date) => setFormData(prev => ({ ...prev, date: date ? date.toISOString().split('T')[0] : "" }))}
                                                             initialFocus
                                                             locale={fr}
+                                                            disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
                                                             className="rounded-xl border border-border shadow-sm"
                                                         />
                                                     </div>
@@ -666,12 +739,16 @@ Merci de confirmer la disponibilité.`;
                                         <span className="text-xs font-heading font-bold truncate">{formData.pickup}</span>
                                     </div>
 
-                                    <div className="pt-2">
+                                    <div className="pt-2 border-t border-border flex flex-col gap-2">
                                         <div className="flex justify-between items-center">
-                                            <span className="text-base font-heading font-semibold">Prix Total Estimé</span>
+                                            <span className="text-sm font-heading font-semibold">Prix Total Estimé</span>
                                             <span className="text-xl font-heading font-bold text-primary">{calculation.formattedTotal}</span>
                                         </div>
-                                        <p className="text-[10px] text-muted-foreground text-right mt-1 font-body">Carburant inclus *</p>
+                                        <div className="flex justify-between items-center bg-primary/5 p-2 rounded-xl">
+                                            <span className="text-xs font-bold text-muted-foreground uppercase">Acompte 30%</span>
+                                            <span className="text-sm font-bold text-primary">{(Math.round(calculation.total * 0.3)).toLocaleString('fr-FR')} F</span>
+                                        </div>
+                                        <p className="text-[10px] text-muted-foreground text-right mt-1 font-body italic">Carburant inclus *</p>
                                     </div>
                                 </div>
 
