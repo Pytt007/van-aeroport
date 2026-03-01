@@ -5,20 +5,40 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import MobileLayout, { PageTransition } from "@/components/MobileLayout";
 import { useTranslation } from "react-i18next";
-import { generateReceiptPDF } from "@/utils/receiptGenerator";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import BoardingPass from "@/components/BoardingPass";
 import html2canvas from "html2canvas";
+import { CONFIG } from "@/constants/config";
 
 const Success = () => {
     const { t } = useTranslation();
     const navigate = useNavigate();
     const location = useLocation();
     const { user } = useAuth();
-    const { type, data } = location.state || { type: "booking", data: null };
-    const [downloading, setDownloading] = useState(false);
+
+    // Setup initial data from state or session storage
+    let initialType = "booking";
+    let initialData = null;
+
+    if (location.state?.data) {
+        initialType = location.state.type;
+        initialData = location.state.data;
+    } else {
+        const stored = sessionStorage.getItem("pendingBooking");
+        if (stored) {
+            try {
+                const parsed = JSON.parse(stored);
+                initialType = parsed.type;
+                initialData = parsed.data;
+            } catch (e) {
+                console.error("Failed to parse stored booking", e);
+            }
+        }
+    }
+
+    const { type, data } = { type: initialType, data: initialData };
     const [saving, setSaving] = useState(false);
     const [savedAddresses, setSavedAddresses] = useState<string[]>([]);
     const [isCapturing, setIsCapturing] = useState(false);
@@ -40,23 +60,6 @@ const Success = () => {
             toast.error("Échec de l'enregistrement de l'adresse.");
         } finally {
             setSaving(false);
-        }
-    };
-
-    const handleDownloadReceipt = async () => {
-        if (!data) {
-            toast.error("Aucune donnée disponible pour le reçu.");
-            return;
-        }
-        setDownloading(true);
-        try {
-            const receiptId = data.id || Math.random().toString(36).substring(2, 8).toUpperCase();
-            await generateReceiptPDF(receiptId, data);
-            toast.success("Votre reçu a été téléchargé.");
-        } catch (error) {
-            toast.error("Échec du téléchargement du reçu.");
-        } finally {
-            setDownloading(false);
         }
     };
 
@@ -105,15 +108,15 @@ const Success = () => {
                         className="max-w-md space-y-4"
                     >
                         <h1 className="text-3xl font-heading font-bold text-foreground">
-                            {type === "rental" ? "Demande envoyée !" : "Réservation transmise !"}
+                            Paiement validé !
                         </h1>
                         <p className="text-muted-foreground font-body leading-relaxed mb-6">
-                            Votre demande a été envoyée avec succès sur WhatsApp. Notre équipe va vous répondre dans quelques instants pour finaliser la confirmation.
+                            Veuillez suivre les deux étapes ci-dessous pour confirmer définitivement votre réservation.
                         </p>
 
                         {!data && (
                             <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-2xl mb-6">
-                                <p className="text-amber-500 text-xs font-medium">Note : Effectuez une réservation depuis l'application pour générer votre ticket personnalisé ici.</p>
+                                <p className="text-amber-500 text-xs font-medium">Note : Réservation introuvable. Veuillez vérifier vos reçus par email.</p>
                             </div>
                         )}
 
@@ -125,21 +128,60 @@ const Success = () => {
                         )}
                     </motion.div>
 
-                    {/* WhatsApp Hint */}
-                    <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        transition={{ delay: 0.4 }}
-                        className="mt-8 p-4 rounded-2xl bg-secondary/50 border border-border flex items-center gap-4 text-left w-full max-w-sm"
-                    >
-                        <div className="w-10 h-10 rounded-xl bg-green-500/10 flex items-center justify-center shrink-0">
-                            <MessageCircle className="w-5 h-5 text-green-500" />
-                        </div>
-                        <div>
-                            <p className="font-heading font-bold text-xs uppercase tracking-wider text-green-500 mb-0.5">Suivi en direct</p>
-                            <p className="text-[11px] text-muted-foreground font-body">La discussion continue sur votre application WhatsApp.</p>
-                        </div>
-                    </motion.div>
+                    {data && (
+                        <motion.div
+                            initial={{ y: 20, opacity: 0 }}
+                            animate={{ y: 0, opacity: 1 }}
+                            transition={{ delay: 0.4 }}
+                            className="w-full max-w-sm space-y-6"
+                        >
+                            {/* Step 1 : Download Ticket */}
+                            <div className="bg-secondary/30 rounded-3xl p-5 border border-border text-left">
+                                <div className="flex items-center gap-3 mb-3">
+                                    <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center font-heading font-bold text-primary shrink-0">1</div>
+                                    <h3 className="font-heading font-bold text-base">Enregistrez votre ticket</h3>
+                                </div>
+                                <p className="text-xs text-muted-foreground font-body mb-4 pl-11">
+                                    Ce ticket contient les détails de votre réservation et le reste à payer au chauffeur.
+                                </p>
+                                <Button
+                                    onClick={handleCaptureBoardingPass}
+                                    disabled={isCapturing}
+                                    className="w-full h-14 rounded-2xl bg-neutral-900 border border-white/10 text-white font-heading font-semibold text-sm tracking-wide shadow-xl group ml-2"
+                                >
+                                    {isCapturing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <FileText className="w-4 h-4 mr-2 text-primary" />}
+                                    ⬇️ Télécharger mon Ticket
+                                </Button>
+                            </div>
+
+                            {/* Step 2 : WhatsApp */}
+                            <div className="bg-green-500/10 rounded-3xl p-5 border border-green-500/20 text-left">
+                                <div className="flex items-center gap-3 mb-3">
+                                    <div className="w-8 h-8 rounded-full bg-green-500 text-white flex items-center justify-center font-heading font-bold shrink-0">2</div>
+                                    <h3 className="font-heading font-bold text-base text-green-700">Confirmez votre réservation</h3>
+                                </div>
+                                <p className="text-xs text-green-700/80 font-body mb-4 pl-11">
+                                    Cliquez ici pour ouvrir WhatsApp. Vous pourrez envoyer la photo de votre ticket pour confirmer votre réservation avec l'équipe.
+                                </p>
+                                <Button
+                                    onClick={() => {
+                                        const msg = `Bonjour, je souhaite confirmer ma réservation.\nRéférence : #${(data.id || '').slice(0, 8).toUpperCase()}
+        
+*Acompte payé :* ${data.deposit ? data.deposit.toLocaleString('fr-FR') : 0} F CFA ✅
+*Reste à payer sur place :* ${data.total && data.deposit ? (data.total - data.deposit).toLocaleString('fr-FR') : 0} F CFA
+
+Voici mon ticket en pièce jointe. Merci de confirmer !`;
+                                        const encodedMsg = encodeURIComponent(msg);
+                                        window.open(`https://wa.me/${CONFIG.WHATSAPP_NUMBER}?text=${encodedMsg}`, '_blank');
+                                    }}
+                                    className="w-full h-14 rounded-2xl bg-green-500 hover:bg-green-600 text-white font-heading font-semibold text-sm tracking-wide shadow-lg group ml-2"
+                                >
+                                    <MessageCircle className="w-5 h-5 mr-2" />
+                                    Continuer sur WhatsApp
+                                </Button>
+                            </div>
+                        </motion.div>
+                    )}
 
                     {/* Save Favorite Address Suggestions */}
                     {user && data && (data.pickup || data.destination) && (
@@ -193,46 +235,12 @@ const Success = () => {
                         transition={{ delay: 0.6 }}
                         className="mt-8 w-full max-w-sm space-y-3"
                     >
-                        {data && (
-                            <Button
-                                onClick={handleCaptureBoardingPass}
-                                disabled={isCapturing}
-                                className="w-full h-14 rounded-2xl bg-neutral-900 border border-white/10 text-white font-heading font-semibold text-sm tracking-wide shadow-xl group mb-2"
-                            >
-                                {isCapturing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <FileText className="w-4 h-4 mr-2 text-primary" />}
-                                Enregistrer mon Ticket (PNG)
-                            </Button>
-                        )}
-
                         <Button
                             onClick={() => navigate("/")}
-                            className="w-full h-14 rounded-2xl bg-primary text-primary-foreground font-heading font-semibold text-sm tracking-wide shadow-lg group"
+                            className="w-full h-14 rounded-2xl bg-primary/10 border border-primary/20 text-foreground font-heading font-semibold text-sm tracking-wide shadow-sm group"
                         >
                             Retour à l'accueil
-                            <Home className="w-4 h-4 ml-2 group-hover:scale-110 transition-transform" />
-                        </Button>
-
-                        <Button
-                            variant="secondary"
-                            onClick={handleDownloadReceipt}
-                            disabled={downloading}
-                            className="w-full h-14 rounded-2xl bg-secondary text-foreground font-heading font-semibold text-sm group"
-                        >
-                            {downloading ? (
-                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                            ) : (
-                                <FileText className="w-4 h-4 mr-2 text-primary" />
-                            )}
-                            Télécharger le reçu provisoire
-                        </Button>
-
-                        <Button
-                            variant="outline"
-                            onClick={() => navigate("/recents")}
-                            className="w-full h-14 rounded-2xl border-border font-heading font-semibold text-sm group"
-                        >
-                            Voir mon historique
-                            <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
+                            <Home className="w-4 h-4 ml-2 group-hover:scale-110 transition-transform text-primary" />
                         </Button>
                     </motion.div>
 

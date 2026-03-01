@@ -69,9 +69,10 @@ export const initializePayment = async (paymentData: PaymentData): Promise<any> 
 
     // Code 201 = success, we get a payment_url
     if (result.code === "201" && result.data?.payment_url) {
-        // Open payment page in new tab
-        window.open(result.data.payment_url, "_blank");
-        return { status: "PENDING", payment_url: result.data.payment_url };
+        // Redirection on the same tab
+        window.location.href = result.data.payment_url;
+        // Return a promise that never resolves to pause execution during redirection
+        return new Promise(() => { });
     } else {
         throw new Error(
             result.description || result.message || `CinetPay error: ${result.code}`

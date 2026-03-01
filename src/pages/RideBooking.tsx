@@ -269,34 +269,9 @@ const RideBooking = () => {
                 payment_status: "pending",
                 transaction_id: paymentData.transaction_id
             });
-            toast.success("Page de paiement ouverte dans un nouvel onglet !");
-        } catch (error: any) {
-            console.error("Payment error:", error);
-            toast.error(error.message || "Le paiement a échoué.");
-            return;
-        }
 
-        const msg = `Bonjour, je souhaite confirmer ma course.${bookingId ? `\nRéférence : #${bookingId.slice(0, 8).toUpperCase()}` : ''}
- 
- *NOM :* ${formData.fullName}
- *TÉLÉPHONE :* ${formData.phone}
- *VÉHICULE :* ${selectedVehicle?.name}
- *DATE :* ${formData.date}
- *HEURE :* ${formData.startTime}
- *PRISE EN CHARGE :* ${formData.pickup}
- *DESTINATION :* ${formData.destination || 'Non spécifiée'}
- 
- *STATUT PAIEMENT :* Acompte de 30% (${depositAmount.toLocaleString('fr-FR')} F) PAYÉ ✅
- 
- ${formData.comment ? `*COMMENTAIRE :* ${formData.comment}` : ''}
- 
- Merci de confirmer la prise en charge.`;
-
-        const encodedMsg = encodeURIComponent(msg);
-        window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${encodedMsg}`, '_blank');
-        toast.success("Redirection vers WhatsApp...");
-        navigate("/success", {
-            state: {
+            // Save data for the success page
+            const successData = {
                 type: "ride",
                 data: {
                     fullName: formData.fullName,
@@ -311,8 +286,17 @@ const RideBooking = () => {
                     deposit: depositAmount,
                     id: bookingId
                 }
-            }
-        });
+            };
+            sessionStorage.setItem("pendingBooking", JSON.stringify(successData));
+
+            toast.loading("Redirection vers le paiement sécurisé...", { duration: 3000 });
+            await initializePayment(paymentData);
+            return; // Stop execution during redirection
+        } catch (error: any) {
+            console.error("Payment error:", error);
+            toast.error(error.message || "Le paiement a échoué.");
+            return;
+        }
     };
 
     return (
@@ -745,8 +729,12 @@ const RideBooking = () => {
                                             <span className="text-xl font-heading font-bold text-primary">{calculation.formattedTotal}</span>
                                         </div>
                                         <div className="flex justify-between items-center bg-primary/5 p-2 rounded-xl">
-                                            <span className="text-xs font-bold text-muted-foreground uppercase">Acompte 30%</span>
+                                            <span className="text-xs font-bold text-muted-foreground uppercase">Acompte (30%)</span>
                                             <span className="text-sm font-bold text-primary">{(Math.round(calculation.total * 0.3)).toLocaleString('fr-FR')} F</span>
+                                        </div>
+                                        <div className="flex justify-between items-center bg-background/50 p-2 rounded-xl border border-border/50">
+                                            <span className="text-xs font-bold text-foreground uppercase">Reste à payer au chauffeur</span>
+                                            <span className="text-sm font-bold text-foreground">{(calculation.total - Math.round(calculation.total * 0.3)).toLocaleString('fr-FR')} F</span>
                                         </div>
                                         <p className="text-[10px] text-muted-foreground text-right mt-1 font-body italic">Carburant inclus *</p>
                                     </div>

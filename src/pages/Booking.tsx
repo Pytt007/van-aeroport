@@ -313,7 +313,7 @@ const Booking = () => {
 
       const paymentResult: any = await initializePayment(paymentData);
 
-      // With redirect method, payment is opened in new tab (PENDING status)
+      // With redirect method, payment is opened in the same tab (PENDING status)
       // Update booking with transaction_id and mark as pending
       await updateBookingSafe(bookingId, {
         status: "pending_payment",
@@ -321,34 +321,8 @@ const Booking = () => {
         transaction_id: paymentData.transaction_id
       });
 
-      toast.success("Page de paiement ouverte dans un nouvel onglet !");
-    } catch (error: any) {
-      console.error("Payment error:", error);
-      toast.error(error.message || "Le paiement a échoué ou a été annulé.");
-      return;
-    }
-
-    // 5. Generate WhatsApp Message
-    const message = `Bonjour, je souhaite confirmer ma réservation.${bookingId ? `\nRéférence : #${bookingId.slice(0, 8).toUpperCase()}` : ''}
-
-*PASSAGER :* ${firstName} ${lastName}
-*TÉLÉPHONE :* ${phone}
-*VÉHICULE :* ${vehicle.name}
-*DÉPART :* ${pickup}
-*DESTINATION :* ${destination}
-*DATE :* ${format(pickupDate, 'dd/MM/yyyy')} à ${pickupTime}
-*PASSAGERS :* ${travelers}
-
-*STATUT PAIEMENT :* Acompte de 30% (${depositAmount.toLocaleString('fr-FR')} F) PAYÉ ✅
-
-Merci de confirmer la prise en charge.`;
-
-    const encodedMessage = encodeURIComponent(message);
-    const whatsappNumber = CONFIG.WHATSAPP_NUMBER;
-    window.open(`https://wa.me/${whatsappNumber}?text=${encodedMessage}`, '_blank');
-
-    navigate("/success", {
-      state: {
+      // Save data for the success page
+      const successData = {
         type: "booking",
         data: {
           fullName: `${firstName} ${lastName}`,
@@ -363,8 +337,17 @@ Merci de confirmer la prise en charge.`;
           travelers,
           id: bookingId
         }
-      }
-    });
+      };
+      sessionStorage.setItem("pendingBooking", JSON.stringify(successData));
+
+      toast.loading("Redirection vers le paiement sécurisé...", { duration: 3000 });
+      await initializePayment(paymentData);
+      return; // Stop execution during redirection
+    } catch (error: any) {
+      console.error("Payment error:", error);
+      toast.error(error.message || "Le paiement a échoué ou a été annulé.");
+      return;
+    }
   };
 
   const inputClass =
@@ -853,12 +836,18 @@ Merci de confirmer la prise en charge.`;
             </div>
             <div className="pt-2 border-t border-primary/20 flex flex-col gap-2">
               <div className="flex justify-between items-center px-2">
-                <span className="text-[10px] text-muted-foreground uppercase font-bold">Acompte 30%</span>
+                <span className="text-[10px] text-muted-foreground uppercase font-bold">Acompte (30%)</span>
                 <span className="text-sm font-bold text-primary">
                   {estimatedPrice > 0 ? (Math.round(estimatedPrice * 0.3)).toLocaleString('fr-FR') : "--"} F
                 </span>
               </div>
-              <p className="text-[10px] text-muted-foreground font-body italic leading-tight">
+              <div className="flex justify-between items-center px-2 bg-background/50 rounded-lg p-1.5">
+                <span className="text-[10px] text-foreground uppercase font-bold">Reste à payer sur place</span>
+                <span className="text-sm font-bold text-foreground">
+                  {estimatedPrice > 0 ? (estimatedPrice - Math.round(estimatedPrice * 0.3)).toLocaleString('fr-FR') : "--"} F
+                </span>
+              </div>
+              <p className="text-[10px] text-muted-foreground font-body italic leading-tight mt-1">
                 * Frais de parking et frais d'attente non inclus
               </p>
               <p className="text-[10px] text-primary font-body font-bold">
