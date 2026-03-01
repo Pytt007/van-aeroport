@@ -17,7 +17,7 @@ const faq = [
   },
   {
     q: "Conditions tarifaires",
-    a: "Course standard : 10 000 F CFA (1 heure incluse)\nHeure complémentaire d’attente : 7 000 F CFA\nFrais de parking : refacturés au client si applicables\n\nNos tarifs sont transparents et communiqués à l’avance, sans surprise."
+    a: "Course standard : 10 000 F CFA (1 heure incluse)\nHeure complémentaire d’attente : à partir de 7 000 F CFA\nFrais de parking : refacturés au client si applicables\n\nNos tarifs sont transparents et communiqués à l’avance, sans surprise."
   },
   {
     q: "Que faire si mon chauffeur est en retard ?",
@@ -25,7 +25,7 @@ const faq = [
   },
   {
     q: "Comment modifier ma réservation ?",
-    a: "Pour toute modification (horaire, lieu, date), contactez-nous via WhatsApp avec :\n\nVotre nom\nLes détails de la réservation\nLes ajustements souhaités\n\nNous confirmerons la disponibilité dans les meilleurs délais.\n\nToute heure supplémentaire d’attente sera facturée 7 000 F CFA."
+    a: "Pour toute modification (horaire, lieu, date), contactez-nous via WhatsApp avec :\n\nVotre nom\nLes détails de la réservation\nLes ajustements souhaités\n\nNous confirmerons la disponibilité dans les meilleurs délais."
   },
 ];
 

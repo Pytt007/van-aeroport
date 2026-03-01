@@ -15,6 +15,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { saveBookingSafe, updateBookingSafe } from "@/lib/supabaseUtils";
 import { cn, isTimeValid, getMinBookingDateTime } from "@/lib/utils";
 import { initializePayment, generateTransactionId } from "@/lib/cinetpay";
+import { getAutomaticDiscount, DiscountResult } from "@/lib/discounts";
 import {
     Drawer,
     DrawerClose,
@@ -46,6 +47,7 @@ const Rentals = () => {
     // Dynamic Data State
     const [vehicles, setVehicles] = useState<any[]>([]);
     const [pricing, setPricing] = useState<any>(null);
+    const [discount, setDiscount] = useState<DiscountResult | null>(null);
 
     useEffect(() => {
         const fetchData = async () => {
@@ -165,8 +167,8 @@ const Rentals = () => {
         [formData.vehicleId, vehicles]
     );
 
-    // Logic: Calculation
-    const calculation = useMemo(() => {
+    // Logic: Proxy Calculation
+    const baseCalculation = useMemo(() => {
         if (!formData.startDate || !formData.endDate || !formData.vehicleId || !pricing) return null;
 
         const start = new Date(`${formData.startDate}T${formData.startTime}`);
@@ -204,9 +206,36 @@ const Rentals = () => {
             days,
             pricePerDay,
             total,
-            formattedTotal: new Intl.NumberFormat('fr-FR').format(total) + " F CFA"
+            formattedTotal: total.toLocaleString('fr-FR') + " F CFA"
         };
     }, [formData, selectedVehicle, pricing]);
+
+    // Apply Discount
+    useEffect(() => {
+        if (baseCalculation?.total && user) {
+            getAutomaticDiscount(user.id, baseCalculation.total).then(setDiscount);
+        } else if (baseCalculation?.total) {
+            setDiscount({
+                discountAmount: 0,
+                discountReason: null,
+                finalPrice: baseCalculation.total
+            });
+        }
+    }, [baseCalculation?.total, user]);
+
+    const calculation = useMemo(() => {
+        if (!baseCalculation || "error" in baseCalculation) return baseCalculation;
+        if (!discount) return baseCalculation;
+
+        return {
+            ...baseCalculation,
+            total: discount.finalPrice,
+            baseTotal: (baseCalculation as any).total,
+            discountAmount: discount.discountAmount,
+            discountReason: discount.discountReason,
+            formattedTotal: discount.finalPrice.toLocaleString('fr-FR') + " F CFA"
+        };
+    }, [baseCalculation, discount]);
 
     const handleBooking = async () => {
         if (!user) {
@@ -725,10 +754,23 @@ const Rentals = () => {
                                         <div className="flex justify-between items-center">
                                             <span className="text-base font-heading font-semibold">Total Estimé</span>
                                             <div className="text-right">
+                                                {(calculation as any).discountAmount > 0 && (
+                                                    <span className="block text-xs text-muted-foreground line-through decoration-red-500/50">
+                                                        {(calculation as any).baseTotal?.toLocaleString('fr-FR')} F
+                                                    </span>
+                                                )}
                                                 <span className="text-xl font-heading font-bold text-primary">{calculation.formattedTotal}</span>
                                                 <p className="text-[10px] text-muted-foreground">Soit {new Intl.NumberFormat('fr-FR').format(calculation.pricePerDay)} J / jour</p>
                                             </div>
                                         </div>
+
+                                        {(calculation as any).discountReason && (
+                                            <div className="flex items-center gap-2 bg-green-500/10 text-green-600 p-2 rounded-xl border border-green-500/20">
+                                                <Gift className="w-3.5 h-3.5 shrink-0" />
+                                                <span className="text-[10px] font-bold font-body">{(calculation as any).discountReason}</span>
+                                            </div>
+                                        )}
+
                                         <div className="flex justify-between items-center bg-primary/5 p-2 rounded-xl">
                                             <span className="text-xs font-bold text-muted-foreground uppercase">Acompte (30%)</span>
                                             <span className="text-sm font-bold text-primary">{(Math.round(calculation.total * 0.3)).toLocaleString('fr-FR')} F</span>

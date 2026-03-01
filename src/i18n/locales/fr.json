@@ -17,7 +17,9 @@
         "completed": "Terminé",
         "pending": "En attente",
         "rebook": "Réserver à nouveau",
-        "book_again": "Réserver à nouveau"
+        "book_again": "Réserver à nouveau",
+        "see_all": "Voir tout",
+        "user": "Voyageur"
     },
     "nav": {
         "home": "Accueil",
@@ -33,11 +35,19 @@
     "home": {
         "greeting": "Hello {{name}} 👋",
         "question": "Où allons-nous ?",
+        "where_to": "Où allons-nous ?",
         "search_placeholder": "Entrez votre destination",
         "recent_rides": "Courses récentes",
         "popular_vehicles": "Véhicules populaires",
+        "popular_cars": "Véhicules populaires",
         "see_all": "Voir tout",
-        "no_recent_rides": "Aucune course récente"
+        "no_recent_rides": "Aucune course récente",
+        "ride_now": "Commander une course",
+        "ride_now_desc": "Déplacez-vous rapidement en ville",
+        "rentals": "Location de véhicule",
+        "rentals_desc": "Réservez un véhicule à l'heure",
+        "airport_van": "Van Aéroport",
+        "airport_van_desc": "Navette partagée ou privée"
     },
     "settings": {
         "appearance": "Apparence",
@@ -46,7 +56,7 @@
         "language": "Langue",
         "version": "Version de l'application",
         "enabled": "Activé",
-        "disabled": "Désactivé",
+        "disabled": "Déactivé",
         "danger_zone": "Zone de danger",
         "delete_account": "Supprimer mon compte",
         "delete_account_desc": "La suppression de votre compte est définitive. Toutes vos données (profil, réservations, adresses) seront supprimées.",

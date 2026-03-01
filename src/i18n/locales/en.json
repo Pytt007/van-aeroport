@@ -17,7 +17,9 @@
         "completed": "Completed",
         "pending": "Pending",
         "rebook": "Rebook",
-        "book_again": "Book again"
+        "book_again": "Book again",
+        "see_all": "See all",
+        "user": "Traveler"
     },
     "nav": {
         "home": "Home",
@@ -32,12 +34,20 @@
     },
     "home": {
         "greeting": "Hello {{name}} 👋",
-        "question": "Where are we going ?",
+        "question": "Where are we going?",
+        "where_to": "Where are we going?",
         "search_placeholder": "Enter your destination",
         "recent_rides": "Recent rides",
         "popular_vehicles": "Popular vehicles",
+        "popular_cars": "Popular vehicles",
         "see_all": "See all",
-        "no_recent_rides": "No recent rides"
+        "no_recent_rides": "No recent rides",
+        "ride_now": "Ride Now",
+        "ride_now_desc": "Get around quickly",
+        "rentals": "Car Rentals",
+        "rentals_desc": "Book a car by the hour",
+        "airport_van": "Airport Van",
+        "airport_van_desc": "Shared or private shuttle"
     },
     "settings": {
         "appearance": "Appearance",

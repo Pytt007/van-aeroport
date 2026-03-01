@@ -1,5 +1,5 @@
-import { motion } from "framer-motion";
-import { MapPin, Clock, Star, Car, Search, ChevronRight, Plane } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { MapPin, Clock, Star, Car, Search, ChevronRight, Plane, ArrowLeft, Calendar, Users } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
@@ -8,6 +8,7 @@ import MobileHeader from "@/components/MobileHeader";
 import { useAuth } from "@/hooks/useAuth";
 import { useTheme } from "@/components/theme-provider";
 import { supabase } from "@/integrations/supabase/client";
+import { cn } from "@/lib/utils";
 import {
   Drawer,
   DrawerClose,
@@ -23,35 +24,14 @@ import taxiSuv from "@/assets/taxi-suv.png";
 import taxiVan from "@/assets/taxi-van.png";
 import Logo from "@/assets/Logo.png";
 import LogoLight from "@/assets/logolight.png";
-
-const popularVehicles = [
-  {
-    name: "Bestune T55",
-    image: taxiSedan,
-    rating: 4.8,
-    speed: "190 km/h",
-    seats: "5 Places",
-    engine: "1.5L Turbo",
-  },
-  {
-    name: "Bestune T77",
-    image: taxiSuv,
-    rating: 4.9,
-    speed: "192 km/h",
-    seats: "5 Places",
-    engine: "1.5L Turbo",
-  },
-  {
-    name: "Nissan Kicks",
-    image: taxiVan,
-    rating: 4.7,
-    speed: "180 km/h",
-    seats: "5 Places",
-    engine: "1.6L Essence",
-  },
-];
-
-// locations are now fetched from Supabase
+import Autoplay from "embla-carousel-autoplay";
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  type CarouselApi
+} from "@/components/ui/carousel";
+import { Gift, Zap, Trophy } from "lucide-react";
 
 interface Vehicle {
   name: string;
@@ -63,13 +43,40 @@ interface Vehicle {
   engine: string;
 }
 
+const promos = [
+  {
+    title: "Offre de lancement",
+    description: "-10% sur vos premières commandes jusqu'au 30 avril !",
+    icon: Zap,
+    color: "from-amber-400 to-orange-500",
+  },
+  {
+    title: "Fidélité Récompensée",
+    description: "-50% sur votre 15ème commande. Automatique !",
+    icon: Gift,
+    color: "from-primary to-blue-600",
+  },
+  {
+    title: "Le Graal du Voyageur",
+    description: "Votre 20ème commande est 100% OFFERTE !",
+    icon: Trophy,
+    color: "from-indigo-500 to-purple-600",
+  }
+];
+
 const Index = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { user } = useAuth();
   const { theme } = useTheme();
   const [destination, setDestination] = useState("");
+  const [pickup, setPickup] = useState("");
   const [profile, setProfile] = useState<{ full_name: string | null } | null>(null);
+  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [locations, setLocations] = useState<string[]>([]);
+  const [api, setApi] = useState<CarouselApi>();
+  const [current, setCurrent] = useState(0);
+  const [showAirportForm, setShowAirportForm] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -83,10 +90,13 @@ const Index = () => {
       });
   }, [user]);
 
-  const displayName = profile?.full_name?.split(" ")[0] || user?.email?.split("@")[0] || "Voyageur";
-
-  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
-  const [locations, setLocations] = useState<string[]>([]);
+  useEffect(() => {
+    if (!api) return;
+    setCurrent(api.selectedScrollSnap());
+    api.on("select", () => {
+      setCurrent(api.selectedScrollSnap());
+    });
+  }, [api]);
 
   useEffect(() => {
     // Fetch vehicles
@@ -112,6 +122,8 @@ const Index = () => {
         }
       });
   }, []);
+
+  const displayName = profile?.full_name?.split(" ")[0] || user?.email?.split("@")[0] || "Voyageur";
 
   const handleDestinationSearch = () => {
     if (destination.trim()) {
@@ -158,9 +170,54 @@ const Index = () => {
           </div>
         </div>
 
+        {/* Promotion Slider */}
+        <div className="mt-2 text-white">
+          <Carousel
+            setApi={setApi}
+            plugins={[
+              Autoplay({
+                delay: 4000,
+              }),
+            ]}
+            className="w-full"
+          >
+            <CarouselContent>
+              {promos.map((promo, index) => (
+                <CarouselItem key={index}>
+                  <div className={`p-4 rounded-3xl bg-gradient-to-br ${promo.color} shadow-lg overflow-hidden relative active:scale-[0.98] transition-all`}>
+                    <div className="absolute -right-4 -bottom-4 opacity-10 rotate-12">
+                      <promo.icon size={120} />
+                    </div>
+                    <div className="relative z-10 flex items-center gap-4 text-left">
+                      <div className="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center shrink-0">
+                        <promo.icon className="w-6 h-6 text-white" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-heading font-bold text-sm tracking-wide uppercase">{promo.title}</h3>
+                        <p className="text-white/90 text-[12px] font-body leading-tight mt-0.5 line-clamp-2">{promo.description}</p>
+                      </div>
+                    </div>
+                  </div>
+                </CarouselItem>
+              ))}
+            </CarouselContent>
+          </Carousel>
+          {/* Dots Indicator */}
+          <div className="flex justify-center gap-1.5 mt-2.5">
+            {promos.map((_, index) => (
+              <div
+                key={index}
+                className={cn(
+                  "h-1 rounded-full transition-all duration-300",
+                  current === index ? "w-6 bg-primary" : "w-1.5 bg-muted"
+                )}
+              />
+            ))}
+          </div>
+        </div>
 
         {/* Search bar (Bottom Sheet) */}
-        <div className="mt-3">
+        <div className="mt-4">
           <Drawer>
             <DrawerTrigger asChild>
               <motion.div
@@ -176,31 +233,40 @@ const Index = () => {
                   <span className="text-sm font-body text-muted-foreground">
                     {destination || t("home.search_placeholder")}
                   </span>
-                  <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                  <Search className="w-4 h-4 text-muted-foreground" />
                 </div>
               </motion.div>
             </DrawerTrigger>
             <DrawerContent className="px-4 pb-8">
               <DrawerHeader className="px-0">
-                <DrawerTitle className="text-left font-heading">{t("home.search_placeholder")}</DrawerTitle>
-                <DrawerDescription className="text-left font-body">
-                  Choisissez votre destination parmi nos zones de service
-                </DrawerDescription>
+                <DrawerTitle className="text-left font-heading">{t("home.where_to")}</DrawerTitle>
+                <DrawerDescription className="text-left font-body">Sélectionnez votre commune de destination.</DrawerDescription>
               </DrawerHeader>
-              <div className="grid grid-cols-1 gap-2 mt-4 max-h-[50vh] overflow-y-auto pr-2 scroll-area">
-                {locations.map((loc) => (
-                  <DrawerClose asChild key={loc}>
+              <div className="relative mt-4">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <input
+                  type="text"
+                  placeholder={t("home.search_placeholder")}
+                  className="w-full bg-secondary rounded-xl py-3 pl-10 pr-4 text-sm font-body focus:outline-none focus:ring-1 focus:ring-primary"
+                  value={destination}
+                  onChange={(e) => setDestination(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && handleDestinationSearch()}
+                />
+              </div>
+              <div className="grid grid-cols-1 gap-2 mt-4 max-h-[40vh] overflow-y-auto pr-1 scroll-area">
+                {locations.filter(l => l.toLowerCase().includes(destination.toLowerCase())).map((loc) => (
+                  <DrawerClose key={loc} asChild>
                     <button
                       onClick={() => {
                         setDestination(loc);
                         navigate("/booking", { state: { destination: loc } });
                       }}
-                      className="flex items-center gap-3 p-4 rounded-xl bg-secondary/40 active:bg-secondary transition-colors text-left"
+                      className="flex items-center gap-3 p-3.5 rounded-xl hover:bg-secondary active:bg-secondary transition-colors text-left"
                     >
-                      <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                        <MapPin className="w-4 h-4 text-primary" />
+                      <div className="w-8 h-8 rounded-lg bg-secondary flex items-center justify-center shrink-0">
+                        <MapPin className="w-4 h-4 text-muted-foreground" />
                       </div>
-                      <span className="font-body font-medium text-sm">{loc}</span>
+                      <span className="text-sm font-body font-medium">{loc}</span>
                     </button>
                   </DrawerClose>
                 ))}
@@ -209,95 +275,219 @@ const Index = () => {
           </Drawer>
         </div>
 
-        {/* Quick actions */}
-        <motion.div
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.15 }}
-          className="mt-4 grid grid-cols-3 gap-3"
-        >
-          {[
-            { icon: Plane, label: t("nav.explorer"), path: "/booking" },
-            { icon: Car, label: t("nav.rentals"), path: "/rentals" },
-            { icon: Clock, label: t("nav.rides"), path: "/ride-booking" },
-          ].map((item) => (
-            <button
-              key={item.label}
-              onClick={() => navigate(item.path)}
-              className="flex flex-col items-center gap-2 p-4 rounded-2xl bg-card border border-border shadow-sm active:scale-95 transition-all text-center"
-            >
-              <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center mb-1">
-                <item.icon className="w-5 h-5 text-primary" />
-              </div>
-              <span className="text-[11px] font-heading font-semibold text-foreground leading-tight">{item.label}</span>
-            </button>
-          ))}
-        </motion.div>
-
-
-        {/* Popular vehicles */}
-        <motion.div
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.25 }}
-          className="mt-6"
-        >
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="font-heading font-semibold text-base">{t("home.popular_vehicles")}</h2>
-            <button
-              onClick={() => navigate("/vehicles")}
-              className="text-primary text-xs font-body font-medium"
-            >
-              {t("home.see_all")}
-            </button>
-          </div>
-
-          <div className="space-y-4">
-            {(vehicles.length > 0 ? vehicles : popularVehicles).map((car, i) => (
+        {/* Categories / Airport Form */}
+        <div className="mt-8">
+          <AnimatePresence mode="wait">
+            {!showAirportForm ? (
               <motion.div
-                key={i}
+                key="categories"
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: 0.25 + i * 0.1 }}
-                className="group relative bg-card rounded-[32px] border border-border overflow-hidden active:scale-[0.98] transition-all shadow-sm"
+                exit={{ opacity: 0, scale: 0.95, filter: "blur(4px)" }}
+                className="grid grid-cols-2 gap-4"
               >
-                {/* Image Section */}
-                <div
-                  onClick={() => navigate("/vehicle-detail", { state: { vehicle: car } })}
-                  className="relative h-48 bg-secondary/50 flex items-center justify-center p-6"
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: 0.2 }}
+                  onClick={() => navigate("/ride-booking")}
+                  className="p-5 rounded-3xl bg-secondary/40 border border-border group active:scale-[0.98] transition-all cursor-pointer"
                 >
-                  <img
-                    src={getVehicleImage(car)}
-                    alt={car.name}
-                    className="w-full h-full object-contain transform group-hover:scale-105 transition-transform duration-500"
-                  />
+                  <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center mb-4 group-hover:bg-primary transition-colors">
+                    <Car className="w-6 h-6 text-primary group-hover:text-white transition-colors" />
+                  </div>
+                  <h3 className="font-heading font-bold text-sm tracking-tight mb-1">{t("home.ride_now")}</h3>
+                  <p className="text-[11px] text-muted-foreground font-body leading-tight">{t("home.ride_now_desc")}</p>
+                </motion.div>
 
-                  {/* Star Button */}
-                  <button className="absolute top-4 right-4 w-10 h-10 rounded-full bg-background/80 backdrop-blur-md flex items-center justify-center shadow-sm active:scale-90 transition-transform">
-                    <Star className="w-5 h-5 text-foreground/70" />
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: 0.3 }}
+                  onClick={() => navigate("/rentals")}
+                  className="p-5 rounded-3xl bg-secondary/40 border border-border group active:scale-[0.98] transition-all cursor-pointer"
+                >
+                  <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center mb-4 group-hover:bg-primary transition-colors">
+                    <Clock className="w-6 h-6 text-primary group-hover:text-white transition-colors" />
+                  </div>
+                  <h3 className="font-heading font-bold text-sm tracking-tight mb-1">{t("home.rentals")}</h3>
+                  <p className="text-[11px] text-muted-foreground font-body leading-tight">{t("home.rentals_desc")}</p>
+                </motion.div>
+
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: 0.4 }}
+                  onClick={() => setShowAirportForm(true)}
+                  className="col-span-2 p-5 rounded-3xl bg-secondary/40 border border-border group active:scale-[0.98] transition-all cursor-pointer overflow-hidden relative"
+                >
+                  <div className="absolute right-0 top-0 h-full w-1/3 opacity-5 flex items-center justify-center rotate-12">
+                    <Plane size={120} className="text-primary" />
+                  </div>
+                  <div className="relative z-10 flex items-center gap-5">
+                    <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center group-hover:bg-primary transition-colors">
+                      <Plane className="w-6 h-6 text-primary group-hover:text-white transition-colors" />
+                    </div>
+                    <div className="text-left">
+                      <h3 className="font-heading font-bold text-sm tracking-tight mb-1">{t("home.airport_van")}</h3>
+                      <p className="text-[11px] text-muted-foreground font-body leading-tight">{t("home.airport_van_desc")}</p>
+                    </div>
+                    <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors ml-auto" />
+                  </div>
+                </motion.div>
+              </motion.div>
+            ) : (
+              <motion.div
+                key="airport-form"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 20 }}
+                className="bg-card border border-border rounded-[32px] p-6 shadow-xl relative overflow-hidden"
+              >
+                <div className="absolute right-0 top-0 opacity-[0.03] -translate-y-1/4 translate-x-1/4">
+                  <Plane size={200} />
+                </div>
+
+                <div className="flex items-center gap-3 mb-6">
+                  <button
+                    onClick={() => setShowAirportForm(false)}
+                    className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center active:scale-90 transition-all"
+                  >
+                    <ArrowLeft className="w-5 h-5" />
+                  </button>
+                  <h3 className="font-heading font-bold text-lg">Réservation Aéroport</h3>
+                </div>
+
+                <div className="space-y-4 relative z-10">
+                  <Drawer>
+                    <DrawerTrigger asChild>
+                      <div className="p-4 rounded-2xl bg-secondary/50 border border-border flex items-center gap-3 cursor-pointer active:scale-[0.98] transition-all">
+                        <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                          <MapPin className="w-5 h-5 text-primary" />
+                        </div>
+                        <div className="flex-1 overflow-hidden">
+                          <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider">Lieu de prise en charge</p>
+                          <p className="text-sm font-body font-medium truncate">{pickup || "D'où partez-vous ?"}</p>
+                        </div>
+                        <ChevronRight className="w-5 h-5 text-muted-foreground" />
+                      </div>
+                    </DrawerTrigger>
+                    <DrawerContent className="px-4 pb-8">
+                      <DrawerHeader className="px-0">
+                        <DrawerTitle className="text-left font-heading">Prise en charge</DrawerTitle>
+                      </DrawerHeader>
+                      <div className="grid grid-cols-1 gap-2 mt-4 max-h-[40vh] overflow-y-auto pr-1 scroll-area">
+                        {locations.map((loc) => (
+                          <DrawerClose key={loc} asChild>
+                            <button
+                              onClick={() => setPickup(loc)}
+                              className="flex items-center gap-3 p-3.5 rounded-xl hover:bg-secondary active:bg-secondary transition-colors text-left"
+                            >
+                              <div className="w-8 h-8 rounded-lg bg-secondary flex items-center justify-center shrink-0">
+                                <MapPin className="w-4 h-4 text-muted-foreground" />
+                              </div>
+                              <span className="text-sm font-body font-medium">{loc}</span>
+                            </button>
+                          </DrawerClose>
+                        ))}
+                      </div>
+                    </DrawerContent>
+                  </Drawer>
+
+                  <Drawer>
+                    <DrawerTrigger asChild>
+                      <div className="p-4 rounded-2xl bg-secondary/50 border border-border flex items-center gap-3 cursor-pointer active:scale-[0.98] transition-all">
+                        <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                          <MapPin className="w-5 h-5 text-primary" />
+                        </div>
+                        <div className="flex-1 overflow-hidden">
+                          <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider">Destination</p>
+                          <p className="text-sm font-body font-medium truncate">{destination || "Où allez-vous ?"}</p>
+                        </div>
+                        <ChevronRight className="w-5 h-5 text-muted-foreground" />
+                      </div>
+                    </DrawerTrigger>
+                    <DrawerContent className="px-4 pb-8">
+                      <DrawerHeader className="px-0">
+                        <DrawerTitle className="text-left font-heading">Destination</DrawerTitle>
+                      </DrawerHeader>
+                      <div className="grid grid-cols-1 gap-2 mt-4 max-h-[40vh] overflow-y-auto pr-1 scroll-area">
+                        {locations.map((loc) => (
+                          <DrawerClose key={loc} asChild>
+                            <button
+                              onClick={() => setDestination(loc)}
+                              className="flex items-center gap-3 p-3.5 rounded-xl hover:bg-secondary active:bg-secondary transition-colors text-left"
+                            >
+                              <div className="w-8 h-8 rounded-lg bg-secondary flex items-center justify-center shrink-0">
+                                <MapPin className="w-4 h-4 text-muted-foreground" />
+                              </div>
+                              <span className="text-sm font-body font-medium">{loc}</span>
+                            </button>
+                          </DrawerClose>
+                        ))}
+                      </div>
+                    </DrawerContent>
+                  </Drawer>
+
+                  <div
+                    onClick={() => navigate("/booking", { state: { pickup, destination } })}
+                    className="p-4 rounded-2xl bg-secondary/50 border border-border flex items-center gap-3 cursor-pointer active:scale-[0.98] transition-all"
+                  >
+                    <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                      <Calendar className="w-5 h-5 text-primary" />
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider">Date & Heure</p>
+                      <p className="text-sm font-body font-medium">Choisir le moment du départ</p>
+                    </div>
+                    <ChevronRight className="w-5 h-5 text-muted-foreground ml-auto" />
+                  </div>
+
+                  <button
+                    onClick={() => navigate("/booking", { state: { pickup, destination } })}
+                    className="w-full py-4 rounded-2xl bg-primary text-primary-foreground font-heading font-bold shadow-lg shadow-primary/20 active:scale-[0.98] transition-all mt-2"
+                  >
+                    Continuer la réservation
                   </button>
                 </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
 
-                {/* Info Section */}
-                <div
-                  onClick={() => navigate("/vehicle-detail", { state: { vehicle: car } })}
-                  className="p-6 flex items-center justify-between"
-                >
-                  <div>
-                    <h3 className="font-heading font-extrabold text-xl text-foreground tracking-tight">{car.name}</h3>
-                    <p className="text-muted-foreground text-[11px] font-body mt-1 uppercase tracking-wider">{car.seats || car.seats} · {car.engine || car.engine}</p>
-                  </div>
-
-                  {/* Rating Badge - Matches screenshot style */}
-                  <div className="flex items-center gap-1.5 bg-foreground/5 backdrop-blur-md px-4 py-2 rounded-2xl border border-border/50">
-                    <Star className="w-3.5 h-3.5 fill-primary text-primary" />
-                    <span className="text-sm font-heading font-bold text-foreground">{car.rating}</span>
+        {/* Popular vehicles */}
+        <div className="mt-8 pb-10 text-left">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-heading font-bold">{t("home.popular_cars")}</h2>
+            <button onClick={() => navigate("/vehicles")} className="text-primary text-xs font-bold font-heading hover:underline underline-offset-4">
+              {t("common.see_all")}
+            </button>
+          </div>
+          <div className="grid grid-cols-1 gap-4">
+            {vehicles.map((v, i) => (
+              <motion.div
+                key={v.name}
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.5 + i * 0.1 }}
+                onClick={() => navigate("/ride-booking", { state: { vehicle: v } })}
+                className="flex items-center gap-4 p-4 rounded-3xl bg-card border border-border group active:scale-[0.98] transition-all cursor-pointer"
+              >
+                <div className="w-24 h-16 bg-secondary rounded-2xl flex items-center justify-center p-2 group-hover:bg-secondary/60 transition-colors">
+                  <img src={getVehicleImage(v)} alt={v.name} className="h-full w-full object-contain" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-heading font-bold text-sm truncate">{v.name}</h3>
+                  <div className="flex items-center gap-1 mt-1">
+                    <Star className="w-3 h-3 fill-primary text-primary" />
+                    <span className="text-[10px] font-bold">{v.rating}</span>
                   </div>
                 </div>
+                <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors" />
               </motion.div>
             ))}
           </div>
-        </motion.div>
+        </div>
       </div>
     </MobileLayout>
   );

@@ -17,6 +17,7 @@ import { Database } from "@/integrations/supabase/types";
 import { cn, isTimeValid, getMinBookingDateTime } from "@/lib/utils";
 import { useFavorites } from "@/hooks/useFavorites";
 import { initializePayment, generateTransactionId } from "@/lib/cinetpay";
+import { getAutomaticDiscount, DiscountResult } from "@/lib/discounts";
 import {
     Home as HomeIcon,
     Briefcase,
@@ -54,6 +55,7 @@ const RideBooking = () => {
     // Dynamic Data State
     const [vehicles, setVehicles] = useState<Database['public']['Tables']['vehicles']['Row'][]>([]);
     const [pricing, setPricing] = useState<any>(null);
+    const [discount, setDiscount] = useState<DiscountResult | null>(null);
 
     useEffect(() => {
         const fetchData = async () => {
@@ -91,7 +93,7 @@ const RideBooking = () => {
                 } else {
                     // Fallback pricing
                     setPricing({
-                        t_series: { first_hour: 15000, additional_hour: 7000 },
+                        t_series: { first_hour: 15000, additional_hour: 10000 },
                         kicks: { first_hour: 10000, additional_hour: 7000 }
                     });
                 }
@@ -104,7 +106,7 @@ const RideBooking = () => {
                     { id: "v3", name: "Nissan Kicks", category: "Kicks", image_url: taxiVan, rating: 4.7, created_at: "", engine: null, is_available: true, seats: null, speed: null }
                 ]);
                 setPricing({
-                    t_series: { first_hour: 15000, additional_hour: 7000 },
+                    t_series: { first_hour: 15000, additional_hour: 10000 },
                     kicks: { first_hour: 10000, additional_hour: 7000 }
                 });
             }
@@ -159,8 +161,8 @@ const RideBooking = () => {
         [formData.vehicleId, vehicles]
     );
 
-    // Logic: Calculation
-    const calculation = useMemo(() => {
+    // Logic: Proxy Calculation
+    const baseCalculation = useMemo(() => {
         if (!formData.vehicleId || !pricing) return null;
 
         const hours = parseInt(formData.hours) || 1;
@@ -178,9 +180,38 @@ const RideBooking = () => {
         return {
             hours,
             total,
-            formattedTotal: new Intl.NumberFormat('fr-FR').format(total) + " F CFA"
+            formattedTotal: total.toLocaleString('fr-FR') + " F CFA"
         };
     }, [formData, selectedVehicle, pricing]);
+
+    // Apply Discount
+    useEffect(() => {
+        if (baseCalculation?.total && user) {
+            getAutomaticDiscount(user.id, baseCalculation.total).then(setDiscount);
+        } else if (baseCalculation?.total) {
+            // Check promo for non-logged users? The tool requires userId. 
+            // For now, only for logged users as per request "15eme commande".
+            setDiscount({
+                discountAmount: 0,
+                discountReason: null,
+                finalPrice: baseCalculation.total
+            });
+        }
+    }, [baseCalculation?.total, user]);
+
+    const calculation = useMemo(() => {
+        if (!baseCalculation) return null;
+        if (!discount) return baseCalculation;
+
+        return {
+            ...baseCalculation,
+            total: discount.finalPrice,
+            baseTotal: baseCalculation.total,
+            discountAmount: discount.discountAmount,
+            discountReason: discount.discountReason,
+            formattedTotal: discount.finalPrice.toLocaleString('fr-FR') + " F CFA"
+        };
+    }, [baseCalculation, discount]);
 
     const handleBooking = async () => {
         if (!user) {
@@ -369,7 +400,7 @@ const RideBooking = () => {
                                         <div className="p-3 rounded-2xl bg-background/50 border border-border/50">
                                             <p className="text-[10px] font-bold uppercase text-primary mb-1">Berline & SUV (T-Series)</p>
                                             <p className="text-xs font-body text-foreground">15 000 F / 1ère heure</p>
-                                            <p className="text-[10px] text-muted-foreground">7 000 F / heure supp.</p>
+                                            <p className="text-[10px] text-muted-foreground">10 000 F / heure supp.</p>
                                         </div>
                                         <div className="p-3 rounded-2xl bg-background/50 border border-border/50">
                                             <p className="text-[10px] font-bold uppercase text-primary mb-1">SUV Compact (Kicks)</p>
@@ -726,8 +757,23 @@ const RideBooking = () => {
                                     <div className="pt-2 border-t border-border flex flex-col gap-2">
                                         <div className="flex justify-between items-center">
                                             <span className="text-sm font-heading font-semibold">Prix Total Estimé</span>
-                                            <span className="text-xl font-heading font-bold text-primary">{calculation.formattedTotal}</span>
+                                            <div className="text-right">
+                                                {calculation.discountAmount > 0 && (
+                                                    <span className="block text-xs text-muted-foreground line-through decoration-red-500/50">
+                                                        {calculation.baseTotal?.toLocaleString('fr-FR')} F
+                                                    </span>
+                                                )}
+                                                <span className="text-xl font-heading font-bold text-primary">{calculation.formattedTotal}</span>
+                                            </div>
                                         </div>
+
+                                        {calculation.discountReason && (
+                                            <div className="flex items-center gap-2 bg-green-500/10 text-green-600 p-2 rounded-xl border border-green-500/20">
+                                                <Gift className="w-3.5 h-3.5 shrink-0" />
+                                                <span className="text-[10px] font-bold font-body">{calculation.discountReason}</span>
+                                            </div>
+                                        )}
+
                                         <div className="flex justify-between items-center bg-primary/5 p-2 rounded-xl">
                                             <span className="text-xs font-bold text-muted-foreground uppercase">Acompte (30%)</span>
                                             <span className="text-sm font-bold text-primary">{(Math.round(calculation.total * 0.3)).toLocaleString('fr-FR')} F</span>

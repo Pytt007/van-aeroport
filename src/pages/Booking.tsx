@@ -16,6 +16,7 @@ import { Database } from "@/integrations/supabase/types";
 import { toast } from "sonner";
 import { cn, isTimeValid, getMinBookingDateTime } from "@/lib/utils";
 import { initializePayment, generateTransactionId } from "@/lib/cinetpay";
+import { getAutomaticDiscount, DiscountResult } from "@/lib/discounts";
 import { useFavorites } from "@/hooks/useFavorites";
 import ClockPicker from "@/components/ClockPicker";
 import {
@@ -51,6 +52,7 @@ const Booking = () => {
   const { favorites } = useFavorites();
   const [vehicle, setVehicle] = useState(location.state?.vehicle || null);
   const incomingDestination = location.state?.destination || "";
+  const incomingPickup = location.state?.pickup || "";
 
   // Vehicles Data State
   const [vehiclesData, setVehiclesData] = useState<any[]>([]);
@@ -61,9 +63,12 @@ const Booking = () => {
   const [zoneRates, setZoneRates] = useState<Record<string, number>>({});
   const [airportHub, setAirportHub] = useState("Aéroport Félix Houphouët-Boigny");
 
-  const [pickup, setPickup] = useState("");
+  const [pickup, setPickup] = useState(incomingPickup);
   const [destination, setDestination] = useState(incomingDestination || "");
-  const [estimatedPrice, setEstimatedPrice] = useState(0);
+  const [basePrice, setBasePrice] = useState(0);
+  const [discount, setDiscount] = useState<DiscountResult | null>(null);
+
+  const estimatedPrice = discount ? discount.finalPrice : basePrice;
 
   // Fetch all dynamic data
   useEffect(() => {
@@ -73,7 +78,7 @@ const Booking = () => {
         const { data: communesData } = await supabase.from("communes").select("*").order("display_order");
         if (communesData && communesData.length > 0) {
           setCommunes(communesData);
-          if (!pickup) setPickup(communesData[0]?.name);
+          if (!pickup && !incomingPickup) setPickup(communesData[0]?.name);
           if (!destination && !incomingDestination) setDestination(communesData[6]?.name || "");
         } else {
           // Fallback communes
@@ -179,8 +184,16 @@ const Booking = () => {
   }, [communes, zoneRates, airportHub]);
 
   useEffect(() => {
-    setEstimatedPrice(calculateDynamicPrice(pickup, destination));
+    setBasePrice(calculateDynamicPrice(pickup, destination));
   }, [pickup, destination, calculateDynamicPrice]);
+
+  useEffect(() => {
+    if (basePrice > 0 && user) {
+      getAutomaticDiscount(user.id, basePrice).then(setDiscount);
+    } else {
+      setDiscount(null);
+    }
+  }, [basePrice, user]);
 
   const minDateTime = getMinBookingDateTime();
   const [lastName, setLastName] = useState("");
@@ -828,12 +841,27 @@ const Booking = () => {
             className="rounded-2xl bg-primary/10 border border-primary/20 p-5 text-center space-y-2"
           >
             <p className="text-xs text-primary font-body uppercase tracking-wider">Prix estimé</p>
-            <div className="flex items-baseline justify-center gap-1.5">
-              <span className="text-2xl font-heading font-bold text-primary">
-                {estimatedPrice > 0 ? estimatedPrice.toLocaleString('fr-FR') : "--"}
-              </span>
-              <span className="text-sm font-heading font-semibold text-primary">F CFA</span>
+            <div className="flex flex-col items-center gap-0.5">
+              {discount && discount.discountAmount > 0 && (
+                <span className="text-xs text-muted-foreground line-through decoration-red-500/50">
+                  {basePrice.toLocaleString('fr-FR')} F
+                </span>
+              )}
+              <div className="flex items-baseline justify-center gap-1.5">
+                <span className="text-2xl font-heading font-bold text-primary">
+                  {estimatedPrice > 0 ? estimatedPrice.toLocaleString('fr-FR') : "--"}
+                </span>
+                <span className="text-sm font-heading font-semibold text-primary">F CFA</span>
+              </div>
             </div>
+
+            {discount?.discountReason && (
+              <div className="flex items-center justify-center gap-2 bg-green-500/10 text-green-600 p-2 rounded-xl border border-green-500/20">
+                <Gift className="w-4 h-4 shrink-0" />
+                <span className="text-[10px] font-bold font-body">{discount.discountReason}</span>
+              </div>
+            )}
+
             <div className="pt-2 border-t border-primary/20 flex flex-col gap-2">
               <div className="flex justify-between items-center px-2">
                 <span className="text-[10px] text-muted-foreground uppercase font-bold">Acompte (30%)</span>
