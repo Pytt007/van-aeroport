@@ -232,64 +232,7 @@ const Booking = () => {
     }
   };
 
-  // Fonction de simulation pour le test (uniquement en local)
-  const handleSimulatedSuccess = async () => {
-    if (!user) return;
 
-    if (!firstName) { toast.error("Veuillez saisir votre prénom"); return; }
-    if (!lastName) { toast.error("Veuillez saisir votre nom"); return; }
-    if (!phone) { toast.error("Veuillez saisir votre numéro de téléphone"); return; }
-    if (!pickup) { toast.error("Veuillez sélectionner un lieu de prise en charge"); return; }
-    if (!destination) { toast.error("Veuillez sélectionner une destination"); return; }
-
-    const depositAmount = Math.round(estimatedPrice * 0.3);
-
-    // 1. Sauvegarde en base
-    const { data: savedBooking, error: saveError } = await saveBookingSafe({
-      user_id: user?.id || null,
-      vehicle_id: vehicle?.id,
-      vehicle_name: vehicle?.name || "Véhicule",
-      pickup_address: pickup,
-      destination,
-      pickup_date: pickupDate ? format(pickupDate, 'yyyy-MM-dd') : null,
-      pickup_time: pickupTime,
-      return_date: returnDate ? format(returnDate, 'yyyy-MM-dd') : null,
-      return_time: returnTime || null,
-      travelers: parseInt(travelers),
-      total_price: estimatedPrice,
-      deposit_amount: depositAmount,
-      booking_type: "airport",
-      status: "completed", // On simule un succès immédiat
-      payment_status: "paid",
-    });
-
-    if (saveError || !savedBooking) {
-      toast.error("Erreur de simulation : " + saveError?.message);
-      return;
-    }
-
-    // 2. Sauvegarde en session pour la page Success
-    const successData = {
-      type: "booking",
-      data: {
-        fullName: `${firstName} ${lastName}`,
-        phone,
-        pickupDate: pickupDate ? format(pickupDate, 'yyyy-MM-dd') : '',
-        pickupTime,
-        pickup,
-        destination,
-        vehicleName: vehicle?.name,
-        total: estimatedPrice,
-        deposit: depositAmount,
-        travelers,
-        id: savedBooking.id
-      }
-    };
-    sessionStorage.setItem("pendingBooking", JSON.stringify(successData));
-
-    toast.success("Simulation réussie ! Redirection...");
-    setTimeout(() => navigate("/success"), 1500);
-  };
 
   const handleConfirm = async () => {
     if (!user) {
@@ -952,15 +895,7 @@ const Booking = () => {
             className="h-20"
           />
 
-          {/* DEVELOPER SIMULATION BUTTON (Localhost only) */}
-          {(window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") && (
-            <Button
-              onClick={handleSimulatedSuccess}
-              className="w-full h-12 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs"
-            >
-              🧪 SIMULER UN SUCCÈS (MODE TEST)
-            </Button>
-          )}
+
         </div>
       </PageTransition>
     </MobileLayout>
