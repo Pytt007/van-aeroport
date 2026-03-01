@@ -52,7 +52,7 @@ const promos = [
   },
   {
     title: "Fidélité Récompensée",
-    description: "-50% sur votre 15ème commande. Automatique !",
+    description: "-50% sur votre 15ème commande.",
     icon: Gift,
     color: "from-primary to-blue-600",
   },
@@ -76,7 +76,7 @@ const Index = () => {
   const [locations, setLocations] = useState<string[]>([]);
   const [api, setApi] = useState<CarouselApi>();
   const [current, setCurrent] = useState(0);
-  const [showAirportForm, setShowAirportForm] = useState(false);
+  const [activeForm, setActiveForm] = useState<'none' | 'ride' | 'rental' | 'airport'>('none');
 
   useEffect(() => {
     if (!user) return;
@@ -278,7 +278,7 @@ const Index = () => {
         {/* Categories / Airport Form */}
         <div className="mt-8">
           <AnimatePresence mode="wait">
-            {!showAirportForm ? (
+            {activeForm === 'none' ? (
               <motion.div
                 key="categories"
                 initial={{ opacity: 0, scale: 0.95 }}
@@ -290,35 +290,45 @@ const Index = () => {
                   initial={{ opacity: 0, scale: 0.95 }}
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ delay: 0.2 }}
-                  onClick={() => navigate("/ride-booking")}
-                  className="p-5 rounded-3xl bg-secondary/40 border border-border group active:scale-[0.98] transition-all cursor-pointer"
+                  onClick={() => setActiveForm('ride')}
+                  className="p-5 rounded-3xl bg-secondary/40 border border-border group active:scale-[0.98] transition-all cursor-pointer overflow-hidden relative"
                 >
-                  <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center mb-4 group-hover:bg-primary transition-colors">
-                    <Car className="w-6 h-6 text-primary group-hover:text-white transition-colors" />
+                  <div className="absolute right-0 top-0 h-full w-1/2 opacity-5 flex items-center justify-center rotate-12 -translate-y-4 translate-x-4">
+                    <Car size={80} className="text-primary" />
                   </div>
-                  <h3 className="font-heading font-bold text-sm tracking-tight mb-1">{t("home.ride_now")}</h3>
-                  <p className="text-[11px] text-muted-foreground font-body leading-tight">{t("home.ride_now_desc")}</p>
+                  <div className="relative z-10">
+                    <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center mb-4 group-hover:bg-primary transition-colors">
+                      <Car className="w-6 h-6 text-primary group-hover:text-white transition-colors" />
+                    </div>
+                    <h3 className="font-heading font-bold text-sm tracking-tight mb-1">{t("home.ride_now")}</h3>
+                    <p className="text-[11px] text-muted-foreground font-body leading-tight">{t("home.ride_now_desc")}</p>
+                  </div>
                 </motion.div>
 
                 <motion.div
                   initial={{ opacity: 0, scale: 0.95 }}
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ delay: 0.3 }}
-                  onClick={() => navigate("/rentals")}
-                  className="p-5 rounded-3xl bg-secondary/40 border border-border group active:scale-[0.98] transition-all cursor-pointer"
+                  onClick={() => setActiveForm('rental')}
+                  className="p-5 rounded-3xl bg-secondary/40 border border-border group active:scale-[0.98] transition-all cursor-pointer overflow-hidden relative"
                 >
-                  <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center mb-4 group-hover:bg-primary transition-colors">
-                    <Clock className="w-6 h-6 text-primary group-hover:text-white transition-colors" />
+                  <div className="absolute right-0 top-0 h-full w-1/2 opacity-5 flex items-center justify-center rotate-12 -translate-y-4 translate-x-4">
+                    <Clock size={80} className="text-primary" />
                   </div>
-                  <h3 className="font-heading font-bold text-sm tracking-tight mb-1">{t("home.rentals")}</h3>
-                  <p className="text-[11px] text-muted-foreground font-body leading-tight">{t("home.rentals_desc")}</p>
+                  <div className="relative z-10">
+                    <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center mb-4 group-hover:bg-primary transition-colors">
+                      <Clock className="w-6 h-6 text-primary group-hover:text-white transition-colors" />
+                    </div>
+                    <h3 className="font-heading font-bold text-sm tracking-tight mb-1">{t("home.rentals")}</h3>
+                    <p className="text-[11px] text-muted-foreground font-body leading-tight">{t("home.rentals_desc")}</p>
+                  </div>
                 </motion.div>
 
                 <motion.div
                   initial={{ opacity: 0, scale: 0.95 }}
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ delay: 0.4 }}
-                  onClick={() => setShowAirportForm(true)}
+                  onClick={() => setActiveForm('airport')}
                   className="col-span-2 p-5 rounded-3xl bg-secondary/40 border border-border group active:scale-[0.98] transition-all cursor-pointer overflow-hidden relative"
                 >
                   <div className="absolute right-0 top-0 h-full w-1/3 opacity-5 flex items-center justify-center rotate-12">
@@ -338,24 +348,30 @@ const Index = () => {
               </motion.div>
             ) : (
               <motion.div
-                key="airport-form"
+                key={`${activeForm}-form`}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 20 }}
                 className="bg-card border border-border rounded-[32px] p-6 shadow-xl relative overflow-hidden"
               >
                 <div className="absolute right-0 top-0 opacity-[0.03] -translate-y-1/4 translate-x-1/4">
-                  <Plane size={200} />
+                  {activeForm === 'ride' && <Car size={200} />}
+                  {activeForm === 'rental' && <Clock size={200} />}
+                  {activeForm === 'airport' && <Plane size={200} />}
                 </div>
 
                 <div className="flex items-center gap-3 mb-6">
                   <button
-                    onClick={() => setShowAirportForm(false)}
+                    onClick={() => setActiveForm('none')}
                     className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center active:scale-90 transition-all"
                   >
                     <ArrowLeft className="w-5 h-5" />
                   </button>
-                  <h3 className="font-heading font-bold text-lg">Réservation Aéroport</h3>
+                  <h3 className="font-heading font-bold text-lg">
+                    {activeForm === 'ride' && "Commander une course"}
+                    {activeForm === 'rental' && "Location de véhicule"}
+                    {activeForm === 'airport' && "Réservation Aéroport"}
+                  </h3>
                 </div>
 
                 <div className="space-y-4 relative z-10">
@@ -366,7 +382,9 @@ const Index = () => {
                           <MapPin className="w-5 h-5 text-primary" />
                         </div>
                         <div className="flex-1 overflow-hidden">
-                          <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider">Lieu de prise en charge</p>
+                          <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider">
+                            {activeForm === 'rental' ? "Lieu de location" : "Lieu de prise en charge"}
+                          </p>
                           <p className="text-sm font-body font-medium truncate">{pickup || "D'où partez-vous ?"}</p>
                         </div>
                         <ChevronRight className="w-5 h-5 text-muted-foreground" />
@@ -374,7 +392,9 @@ const Index = () => {
                     </DrawerTrigger>
                     <DrawerContent className="px-4 pb-8">
                       <DrawerHeader className="px-0">
-                        <DrawerTitle className="text-left font-heading">Prise en charge</DrawerTitle>
+                        <DrawerTitle className="text-left font-heading">
+                          {activeForm === 'rental' ? "Lieu de location" : "Prise en charge"}
+                        </DrawerTitle>
                       </DrawerHeader>
                       <div className="grid grid-cols-1 gap-2 mt-4 max-h-[40vh] overflow-y-auto pr-1 scroll-area">
                         {locations.map((loc) => (
@@ -394,43 +414,48 @@ const Index = () => {
                     </DrawerContent>
                   </Drawer>
 
-                  <Drawer>
-                    <DrawerTrigger asChild>
-                      <div className="p-4 rounded-2xl bg-secondary/50 border border-border flex items-center gap-3 cursor-pointer active:scale-[0.98] transition-all">
-                        <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
-                          <MapPin className="w-5 h-5 text-primary" />
+                  {activeForm !== 'rental' && (
+                    <Drawer>
+                      <DrawerTrigger asChild>
+                        <div className="p-4 rounded-2xl bg-secondary/50 border border-border flex items-center gap-3 cursor-pointer active:scale-[0.98] transition-all">
+                          <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                            <MapPin className="w-5 h-5 text-primary" />
+                          </div>
+                          <div className="flex-1 overflow-hidden">
+                            <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider">Destination</p>
+                            <p className="text-sm font-body font-medium truncate">{destination || "Où allez-vous ?"}</p>
+                          </div>
+                          <ChevronRight className="w-5 h-5 text-muted-foreground" />
                         </div>
-                        <div className="flex-1 overflow-hidden">
-                          <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider">Destination</p>
-                          <p className="text-sm font-body font-medium truncate">{destination || "Où allez-vous ?"}</p>
+                      </DrawerTrigger>
+                      <DrawerContent className="px-4 pb-8">
+                        <DrawerHeader className="px-0">
+                          <DrawerTitle className="text-left font-heading">Destination</DrawerTitle>
+                        </DrawerHeader>
+                        <div className="grid grid-cols-1 gap-2 mt-4 max-h-[40vh] overflow-y-auto pr-1 scroll-area">
+                          {locations.map((loc) => (
+                            <DrawerClose key={loc} asChild>
+                              <button
+                                onClick={() => setDestination(loc)}
+                                className="flex items-center gap-3 p-3.5 rounded-xl hover:bg-secondary active:bg-secondary transition-colors text-left"
+                              >
+                                <div className="w-8 h-8 rounded-lg bg-secondary flex items-center justify-center shrink-0">
+                                  <MapPin className="w-4 h-4 text-muted-foreground" />
+                                </div>
+                                <span className="text-sm font-body font-medium">{loc}</span>
+                              </button>
+                            </DrawerClose>
+                          ))}
                         </div>
-                        <ChevronRight className="w-5 h-5 text-muted-foreground" />
-                      </div>
-                    </DrawerTrigger>
-                    <DrawerContent className="px-4 pb-8">
-                      <DrawerHeader className="px-0">
-                        <DrawerTitle className="text-left font-heading">Destination</DrawerTitle>
-                      </DrawerHeader>
-                      <div className="grid grid-cols-1 gap-2 mt-4 max-h-[40vh] overflow-y-auto pr-1 scroll-area">
-                        {locations.map((loc) => (
-                          <DrawerClose key={loc} asChild>
-                            <button
-                              onClick={() => setDestination(loc)}
-                              className="flex items-center gap-3 p-3.5 rounded-xl hover:bg-secondary active:bg-secondary transition-colors text-left"
-                            >
-                              <div className="w-8 h-8 rounded-lg bg-secondary flex items-center justify-center shrink-0">
-                                <MapPin className="w-4 h-4 text-muted-foreground" />
-                              </div>
-                              <span className="text-sm font-body font-medium">{loc}</span>
-                            </button>
-                          </DrawerClose>
-                        ))}
-                      </div>
-                    </DrawerContent>
-                  </Drawer>
+                      </DrawerContent>
+                    </Drawer>
+                  )}
 
                   <div
-                    onClick={() => navigate("/booking", { state: { pickup, destination } })}
+                    onClick={() => {
+                      const route = activeForm === 'rental' ? "/rentals" : activeForm === 'ride' ? "/ride-booking" : "/booking";
+                      navigate(route, { state: { pickup, destination } });
+                    }}
                     className="p-4 rounded-2xl bg-secondary/50 border border-border flex items-center gap-3 cursor-pointer active:scale-[0.98] transition-all"
                   >
                     <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
@@ -444,7 +469,10 @@ const Index = () => {
                   </div>
 
                   <button
-                    onClick={() => navigate("/booking", { state: { pickup, destination } })}
+                    onClick={() => {
+                      const route = activeForm === 'rental' ? "/rentals" : activeForm === 'ride' ? "/ride-booking" : "/booking";
+                      navigate(route, { state: { pickup, destination } });
+                    }}
                     className="w-full py-4 rounded-2xl bg-primary text-primary-foreground font-heading font-bold shadow-lg shadow-primary/20 active:scale-[0.98] transition-all mt-2"
                   >
                     Continuer la réservation

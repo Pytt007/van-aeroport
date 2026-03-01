@@ -222,14 +222,25 @@ const History = () => {
                       </button>
                     </div>
 
-                    {/* Receipt Button - Now as the primary action like requested */}
-                    <Button
-                      onClick={() => handleDownload(booking)}
-                      className="w-full h-12 rounded-2xl bg-primary text-primary-foreground font-heading font-bold text-sm shadow-md active:scale-[0.98] transition-all border-none"
-                    >
-                      <FileText className="w-4 h-4 mr-2" />
-                      Télécharger le reçu
-                    </Button>
+                    {/* Action Buttons based on status */}
+                    {['confirmee', 'termine'].includes(booking.status?.toLowerCase()) ? (
+                      <Button
+                        onClick={() => handleDownload(booking)}
+                        className="w-full h-12 rounded-2xl bg-primary text-primary-foreground font-heading font-bold text-sm shadow-md active:scale-[0.98] transition-all border-none"
+                      >
+                        <FileText className="w-4 h-4 mr-2" />
+                        Télécharger le reçu
+                      </Button>
+                    ) : (status.label !== "Annulée" && (
+                      <Button
+                        onClick={() => navigate("/tracking", { state: { bookingId: booking.id } })}
+                        variant="secondary"
+                        className="w-full h-12 rounded-2xl font-heading font-bold text-sm active:scale-[0.98] transition-all"
+                      >
+                        <AlertCircle className="w-4 h-4 mr-2" />
+                        Suivre la commande
+                      </Button>
+                    ))}
                   </div>
                 </motion.div>
               );
