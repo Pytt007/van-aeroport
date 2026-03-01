@@ -46,7 +46,7 @@ export const initializePayment = async (paymentData: PaymentData): Promise<any> 
     // Build absolute URLs for return_url and notify_url (required by CinetPay)
     const isLocalhost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
     const baseUrl = isLocalhost
-        ? "https://vanaeroport-master.vercel.app"
+        ? "https://van-aeroport.com"
         : window.location.origin;
 
     // Call our serverless proxy instead of CinetPay directly (avoids CORS)
