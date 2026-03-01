@@ -33,7 +33,7 @@ const Tracking = () => {
 
   useEffect(() => {
     if (progress >= 100) {
-      const timeout = setTimeout(() => navigate("/rating"), 1500);
+      const timeout = setTimeout(() => navigate("/profile"), 1500);
       return () => clearTimeout(timeout);
     }
   }, [progress, navigate]);

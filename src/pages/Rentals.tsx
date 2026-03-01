@@ -143,6 +143,60 @@ const Rentals = () => {
         kilometers: "0",
     });
 
+    // Fonction de simulation pour le test (uniquement en local)
+    const handleSimulatedSuccess = async () => {
+        if (!user) return;
+
+        const depositAmount = calculation ? Math.round(calculation.total * 0.3) : 0;
+
+        // 1. Sauvegarde en base
+        const { data: savedBooking, error: saveError } = await saveBookingSafe({
+            user_id: user?.id || null,
+            vehicle_id: selectedVehicle?.id,
+            vehicle_name: selectedVehicle?.name || "Véhicule",
+            pickup_address: `Agence / Zone: ${formData.zone}`,
+            destination: `Location - ${formData.zone}`,
+            pickup_date: formData.startDate,
+            pickup_time: formData.startTime,
+            return_date: formData.endDate,
+            return_time: formData.endTime,
+            travelers: 1,
+            total_price: calculation?.total,
+            deposit_amount: depositAmount,
+            booking_type: "rental",
+            status: "completed", // On simule un succès immédiat
+            payment_status: "paid",
+        });
+
+        if (saveError || !savedBooking) {
+            toast.error("Erreur de simulation : " + (saveError?.message || "Inconnu"));
+            return;
+        }
+
+        // 2. Sauvegarde en session pour la page Success
+        const successData = {
+            type: "rental",
+            data: {
+                fullName: formData.fullName,
+                phone: formData.phone,
+                startDate: formData.startDate,
+                startTime: formData.startTime,
+                endDate: formData.endDate,
+                endTime: formData.endTime,
+                zone: formData.zone,
+                vehicleName: selectedVehicle?.name,
+                days: calculation?.days,
+                total: calculation?.total,
+                deposit: depositAmount,
+                id: savedBooking.id
+            }
+        };
+        sessionStorage.setItem("pendingBooking", JSON.stringify(successData));
+
+        toast.success("Simulation réussie ! Redirection...");
+        setTimeout(() => navigate("/success"), 1500);
+    };
+
     // Pre-fill user info from profile
     useEffect(() => {
         if (!user) return;
@@ -312,31 +366,9 @@ const Rentals = () => {
 
         // 3. Initiate Payment
         try {
-            const paymentData = {
-                transaction_id: generateTransactionId(),
-                amount: depositAmount,
-                currency: "XOF",
-                description: `Acompte 30% - Location #${bookingId.slice(0, 8).toUpperCase()}`,
-                customer_name: formData.fullName.split(" ")[0] || "Customer",
-                customer_surname: formData.fullName.split(" ").slice(1).join(" ") || formData.fullName,
-                customer_phone_number: formData.phone,
-                customer_email: formData.email || "customer@example.com",
-                customer_address: `Zone: ${formData.zone}`,
-                customer_city: "Abidjan",
-                customer_country: "CI",
-                customer_state: "CI",
-                customer_zip_code: "00225",
-            };
+            const transactionId = generateTransactionId();
 
-            const paymentResult: any = await initializePayment(paymentData);
-
-            await updateBookingSafe(bookingId, {
-                status: "pending_payment",
-                payment_status: "pending",
-                transaction_id: paymentData.transaction_id
-            });
-
-            // Save data for the success page
+            // Save data for the success page FIRST (before redirection)
             const successData = {
                 type: "rental",
                 data: {
@@ -356,9 +388,34 @@ const Rentals = () => {
             };
             sessionStorage.setItem("pendingBooking", JSON.stringify(successData));
 
+            // Update booking with transaction_id and mark as pending
+            await updateBookingSafe(bookingId, {
+                status: "pending_payment",
+                payment_status: "pending",
+                transaction_id: transactionId
+            });
+
+            const paymentData = {
+                transaction_id: transactionId,
+                amount: depositAmount,
+                currency: "XOF",
+                description: `Acompte 30% - Location #${bookingId.slice(0, 8).toUpperCase()}`,
+                customer_name: formData.fullName.split(" ")[0] || "Customer",
+                customer_surname: formData.fullName.split(" ").slice(1).join(" ") || formData.fullName,
+                customer_phone_number: formData.phone,
+                customer_email: formData.email || "customer@example.com",
+                customer_address: `Zone: ${formData.zone}`,
+                customer_city: "Abidjan",
+                customer_country: "CI",
+                customer_state: "CI",
+                customer_zip_code: "00225",
+            };
+
             toast.loading("Redirection vers le paiement sécurisé...", { duration: 3000 });
+
+            // Redirect to CinetPay
             await initializePayment(paymentData);
-            return; // Stop execution during redirection
+            return;
         } catch (error: any) {
             console.error("Payment error:", error);
             toast.error(error.message || "Le paiement a échoué.");
@@ -805,6 +862,16 @@ const Rentals = () => {
                                         <ArrowLeft className="w-4 h-4 mr-2" />
                                         Modifier les infos
                                     </Button>
+
+                                    {/* DEVELOPER SIMULATION BUTTON (Localhost only) */}
+                                    {(window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") && (
+                                        <Button
+                                            onClick={handleSimulatedSuccess}
+                                            className="w-full h-12 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs"
+                                        >
+                                            🧪 SIMULER UN SUCCÈS (MODE TEST)
+                                        </Button>
+                                    )}
                                 </div>
                             </motion.div>
                         )}

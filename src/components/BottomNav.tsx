@@ -13,7 +13,7 @@ const BottomNav = () => {
     { icon: Search, label: t("nav.explorer"), path: "/vehicles" },
     { icon: Car, label: t("nav.rentals"), path: "/rentals" },
     { icon: MapPin, label: t("nav.rides"), path: "/ride-booking" },
-    { icon: User, label: t("nav.profile"), path: "/rating" },
+    { icon: User, label: t("nav.profile"), path: "/profile" },
   ];
 
   return (

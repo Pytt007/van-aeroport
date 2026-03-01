@@ -21,7 +21,8 @@ import { getAutomaticDiscount, DiscountResult } from "@/lib/discounts";
 import {
     Home as HomeIcon,
     Briefcase,
-    Star
+    Star,
+    Gift
 } from "lucide-react";
 import {
     Drawer,
@@ -213,6 +214,57 @@ const RideBooking = () => {
         };
     }, [baseCalculation, discount]);
 
+    // Fonction de simulation pour le test (uniquement en local)
+    const handleSimulatedSuccess = async () => {
+        if (!user) return;
+
+        const depositAmount = calculation ? Math.round(calculation.total * 0.3) : 0;
+
+        // 1. Sauvegarde en base
+        const { data: savedBooking, error: saveError } = await saveBookingSafe({
+            user_id: user?.id || null,
+            vehicle_id: selectedVehicle?.id,
+            vehicle_name: selectedVehicle?.name || "Véhicule",
+            pickup_address: formData.pickup,
+            destination: formData.destination || "Course urbaine",
+            pickup_date: formData.date,
+            pickup_time: formData.startTime,
+            travelers: 1,
+            total_price: calculation?.total,
+            deposit_amount: depositAmount,
+            booking_type: "hourly",
+            status: "completed", // On simule un succès immédiat
+            payment_status: "paid",
+        });
+
+        if (saveError || !savedBooking) {
+            toast.error("Erreur de simulation : " + saveError?.message);
+            return;
+        }
+
+        // 2. Sauvegarde en session pour la page Success
+        const successData = {
+            type: "ride",
+            data: {
+                fullName: formData.fullName,
+                phone: formData.phone,
+                pickupDate: formData.date,
+                pickupTime: formData.startTime,
+                hours: formData.hours,
+                pickup: formData.pickup,
+                destination: formData.destination,
+                vehicleName: selectedVehicle?.name,
+                total: calculation?.total,
+                deposit: depositAmount,
+                id: savedBooking.id
+            }
+        };
+        sessionStorage.setItem("pendingBooking", JSON.stringify(successData));
+
+        toast.success("Simulation réussie ! Redirection...");
+        setTimeout(() => navigate("/success"), 1500);
+    };
+
     const handleBooking = async () => {
         if (!user) {
             toast.error("Vous devez être connecté pour effectuer une réservation.");
@@ -237,7 +289,8 @@ const RideBooking = () => {
 
         // 1. Check Availability (Optional for rides, but good for consistency)
         try {
-            const { data: isAvailable, error: availError } = await supabase.rpc('check_vehicle_availability', {
+            // @ts-ignore - RPC might not be in generated types
+            const { data: isAvailable, error: availError } = await (supabase as any).rpc('check_vehicle_availability', {
                 p_vehicle_id: selectedVehicle?.id || "",
                 p_pickup_date: formData.date
             });
@@ -277,8 +330,36 @@ const RideBooking = () => {
 
         // 3. Initiate Payment
         try {
+            const transactionId = generateTransactionId();
+
+            // Save data for the success page FIRST (before redirection)
+            const successData = {
+                type: "ride",
+                data: {
+                    fullName: formData.fullName,
+                    phone: formData.phone,
+                    pickupDate: formData.date,
+                    pickupTime: formData.startTime,
+                    hours: formData.hours,
+                    pickup: formData.pickup,
+                    destination: formData.destination,
+                    vehicleName: selectedVehicle?.name,
+                    total: calculation?.total,
+                    deposit: depositAmount,
+                    id: bookingId
+                }
+            };
+            sessionStorage.setItem("pendingBooking", JSON.stringify(successData));
+
+            // Update booking with transaction_id and mark as pending
+            await updateBookingSafe(bookingId, {
+                status: "pending_payment",
+                payment_status: "pending",
+                transaction_id: transactionId
+            });
+
             const paymentData = {
-                transaction_id: generateTransactionId(),
+                transaction_id: transactionId,
                 amount: depositAmount,
                 currency: "XOF",
                 description: `Acompte 30% - Course #${bookingId.slice(0, 8).toUpperCase()}`,
@@ -293,36 +374,11 @@ const RideBooking = () => {
                 customer_zip_code: "00225",
             };
 
-            const paymentResult: any = await initializePayment(paymentData);
-
-            await updateBookingSafe(bookingId, {
-                status: "pending_payment",
-                payment_status: "pending",
-                transaction_id: paymentData.transaction_id
-            });
-
-            // Save data for the success page
-            const successData = {
-                type: "ride",
-                data: {
-                    fullName: formData.fullName,
-                    phone: formData.phone,
-                    date: formData.date,
-                    startTime: formData.startTime,
-                    hours: formData.hours,
-                    pickup: formData.pickup,
-                    destination: formData.destination,
-                    vehicleName: selectedVehicle?.name,
-                    total: calculation?.total,
-                    deposit: depositAmount,
-                    id: bookingId
-                }
-            };
-            sessionStorage.setItem("pendingBooking", JSON.stringify(successData));
-
             toast.loading("Redirection vers le paiement sécurisé...", { duration: 3000 });
+
+            // This will redirect the window, stopping further execution in this tab
             await initializePayment(paymentData);
-            return; // Stop execution during redirection
+            return;
         } catch (error: any) {
             console.error("Payment error:", error);
             toast.error(error.message || "Le paiement a échoué.");
@@ -801,6 +857,16 @@ const RideBooking = () => {
                                         <ArrowLeft className="w-4 h-4 mr-2" />
                                         Modifier les infos
                                     </Button>
+
+                                    {/* DEVELOPER SIMULATION BUTTON (Localhost only) */}
+                                    {(window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") && (
+                                        <Button
+                                            onClick={handleSimulatedSuccess}
+                                            className="w-full h-12 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs"
+                                        >
+                                            🧪 SIMULER UN SUCCÈS (MODE TEST)
+                                        </Button>
+                                    )}
                                 </div>
                             </motion.div>
                         )}

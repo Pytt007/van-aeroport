@@ -54,7 +54,7 @@ const MobileDrawer = ({ isOpen, onClose }: MobileDrawerProps) => {
         {
             title: t("nav.profile"),
             items: [
-                { icon: User, label: t("profile.title"), path: "/rating" },
+                { icon: User, label: t("profile.title"), path: "/profile" },
                 { icon: Clock, label: t("nav.history"), path: "/recents" },
                 { icon: Star, label: t("nav.favoris"), path: "/favoris" },
                 { icon: MapPin, label: t("nav.addresses"), path: "/adresses" },
@@ -103,7 +103,7 @@ const MobileDrawer = ({ isOpen, onClose }: MobileDrawerProps) => {
                                 <X className="w-5 h-5 text-foreground" />
                             </button>
 
-                            <div className="flex items-center gap-4 group" onClick={() => handleNavigation("/rating")}>
+                            <div className="flex items-center gap-4 group" onClick={() => handleNavigation("/profile")}>
                                 <Avatar className="w-16 h-16 border-2 border-primary/20">
                                     <AvatarImage src={profile?.avatar_url || undefined} />
                                     <AvatarFallback className="bg-primary/10 text-primary font-heading font-bold text-xl">

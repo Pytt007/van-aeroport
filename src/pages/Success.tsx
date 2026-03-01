@@ -165,12 +165,34 @@ const Success = () => {
                                 </p>
                                 <Button
                                     onClick={() => {
-                                        const msg = `Bonjour, je souhaite confirmer ma réservation.\nRéférence : #${(data.id || '').slice(0, 8).toUpperCase()}
-        
-*Acompte payé :* ${data.deposit ? data.deposit.toLocaleString('fr-FR') : 0} F CFA ✅
-*Reste à payer sur place :* ${data.total && data.deposit ? (data.total - data.deposit).toLocaleString('fr-FR') : 0} F CFA
+                                        const reference = (data.id || '').slice(0, 8).toUpperCase();
+                                        const displayDate = data.pickupDate || data.startDate || '--';
+                                        const displayTime = data.pickupTime || data.startTime || '--';
+                                        const displayPickup = data.pickup || (data.zone ? `Agence (${data.zone})` : '--');
+                                        const displayDestination = data.destination || (data.zone ? `Location (${data.zone})` : '--');
 
-Voici mon ticket en pièce jointe. Merci de confirmer !`;
+                                        const isRental = data.type === 'rental' || !!data.endDate;
+                                        const isHourly = data.type === 'ride' || data.type === 'hourly' || !!data.hours;
+
+                                        let serviceDetails = "";
+                                        if (isRental) {
+                                            serviceDetails = `📅 *Période :* du ${displayDate} au ${data.endDate || '--'}\n⏱️ *Heures :* de ${displayTime} à ${data.endTime || '18:00'}\n🏢 *Durée :* ${data.days || '--'} jour(s)`;
+                                        } else if (isHourly) {
+                                            serviceDetails = `📅 *Date :* ${displayDate}\n⏱️ *Horaires :* de ${displayTime} pour ${data.hours || '--'}h\n📍 *Départ :* ${displayPickup}`;
+                                        } else {
+                                            serviceDetails = `📅 *Date :* ${displayDate} à ${displayTime}\n📍 *Trajet :* ${displayPickup} ➡️ ${displayDestination}\n👥 *Passagers :* ${data.travelers || '1'}`;
+                                        }
+
+                                        const msg = `Bonjour, je vous envoie la preuve de mon paiement d'acompte pour ma réservation.
+
+📌 *Référence :* #${reference}
+👤 *Passager :* ${data.fullName || 'Client'}
+${serviceDetails}
+        
+💰 *Acompte payé :* ${data.deposit ? data.deposit.toLocaleString('fr-FR') : 0} F CFA ✅
+💳 *Reste à payer :* ${data.total && data.deposit ? (data.total - data.deposit).toLocaleString('fr-FR') : 0} F CFA
+
+Veuillez trouver mon ticket en pièce jointe. Merci !`;
                                         const encodedMsg = encodeURIComponent(msg);
                                         window.open(`https://wa.me/${CONFIG.WHATSAPP_NUMBER}?text=${encodedMsg}`, '_blank');
                                     }}
@@ -244,9 +266,6 @@ Voici mon ticket en pièce jointe. Merci de confirmer !`;
                         </Button>
                     </motion.div>
 
-                    <footer className="absolute bottom-8 text-[10px] text-muted-foreground/40 font-body uppercase tracking-[0.2em]">
-                        Vanaeroport Premium Service
-                    </footer>
                 </div>
             </PageTransition>
         </MobileLayout>

@@ -75,14 +75,32 @@ export async function updateBookingSafe(id: string, updateData: any) {
 
         if (!error) return { error: null };
 
-        if (error.message.includes("column") || error.code === "42703") {
-            console.warn("Detected missing columns during update. Pruning data...");
+        if (error) {
+            console.warn("Update failure. Attempting fallback metadata storage...", error);
+
+            // Get current booking to preserve existing destination
+            const { data: current } = await supabase.from("bookings").select("destination").eq("id", id).single();
 
             const {
                 payment_status,
                 transaction_id,
+                deposit_amount,
+                status,
                 ...safeUpdate
             } = updateData;
+
+            // Pack payment info into destination as fallback
+            const metadata = [];
+            if (payment_status) metadata.push(`PayStat: ${payment_status}`);
+            if (deposit_amount) metadata.push(`Acompte: ${deposit_amount}`);
+            if (status) metadata.push(`Status: ${status}`);
+
+            const newDest = current?.destination || "";
+            if (metadata.length > 0) {
+                // Remove old meta if exists and add new
+                const baseDest = newDest.split(" | [META:")[0];
+                (safeUpdate as any).destination = `${baseDest} | [META: ${metadata.join(', ')}]`;
+            }
 
             const { error: retryError } = await supabase
                 .from("bookings")

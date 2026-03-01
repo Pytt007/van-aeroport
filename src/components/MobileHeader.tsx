@@ -90,7 +90,7 @@ const MobileHeader = ({
 
           {showProfile ? (
             <button
-              onClick={() => navigate("/rating")}
+              onClick={() => navigate("/profile")}
               className="active:scale-95 transition-transform shrink-0"
             >
               <Avatar className="w-9 h-9 border border-border">

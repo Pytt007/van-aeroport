@@ -16,7 +16,7 @@ import VehicleDetail from "./pages/VehicleDetail";
 import Charging from "./pages/Charging";
 import Booking from "./pages/Booking";
 import Tracking from "./pages/Tracking";
-import Rating from "./pages/Rating";
+import Profile from "./pages/Profile";
 import Recents from "./pages/Recents";
 import RideBooking from "./pages/RideBooking";
 import Favoris from "./pages/Favoris";
@@ -114,7 +114,7 @@ const AppContent = () => {
           <Route path="/charging" element={<ProtectedRoute><Charging /></ProtectedRoute>} />
           <Route path="/booking" element={<ProtectedRoute><Booking /></ProtectedRoute>} />
           <Route path="/tracking" element={<ProtectedRoute><Tracking /></ProtectedRoute>} />
-          <Route path="/rating" element={<ProtectedRoute><Rating /></ProtectedRoute>} />
+          <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
           <Route path="/recents" element={<ProtectedRoute><Recents /></ProtectedRoute>} />
           <Route path="/ride-booking" element={<ProtectedRoute><RideBooking /></ProtectedRoute>} />
           <Route path="/favoris" element={<ProtectedRoute><Favoris /></ProtectedRoute>} />
