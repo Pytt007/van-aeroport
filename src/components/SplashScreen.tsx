@@ -53,19 +53,19 @@ const SplashScreen = ({ onFinish }: SplashScreenProps) => {
                         initial={{ y: -20, opacity: 0 }}
                         animate={{ y: 0, opacity: 1 }}
                         transition={{ duration: 0.8, ease: "easeOut" }}
-                        className="mb-8"
+                        className="mb-0"
                     >
                         <img
                             src={logoSrc}
                             alt="Bip Bip ! Aéroport"
-                            className="w-[360px] max-w-[85vw] h-auto drop-shadow-[0_0_25px_rgba(246,177,4,0.35)]"
+                            className="w-[340px] max-w-[85vw] h-auto drop-shadow-[0_0_25px_rgba(246,177,4,0.35)]"
                         />
                     </motion.div>
                 </div>
             </motion.div>
 
             {/* Loading bar animation */}
-            <div className="absolute bottom-20 w-40 h-1 bg-muted rounded-full overflow-hidden">
+            <div className="absolute bottom-8 sm:bottom-12 w-40 h-1 bg-muted rounded-full overflow-hidden">
                 <motion.div
                     initial={{ x: "-100%" }}
                     animate={{ x: "0%" }}
