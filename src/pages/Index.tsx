@@ -153,7 +153,7 @@ const Index = () => {
           <img
             src={theme === "dark" ? Logo : LogoLight}
             alt="Bip Bip ! Aéroport"
-            className="h-16 w-auto object-contain"
+            className="h-14 w-auto object-contain"
           />
         }
         showBack={false}

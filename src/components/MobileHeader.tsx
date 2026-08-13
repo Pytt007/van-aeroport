@@ -53,8 +53,8 @@ const MobileHeader = ({
   return (
     <>
       <div
-        className="flex items-center justify-between px-4 py-2.5 bg-background/90 backdrop-blur-md sticky top-0 z-30 border-b border-border/50"
-        style={{ paddingTop: "max(env(safe-area-inset-top), 32px)" }}
+        className="flex items-center justify-between px-4 pb-3.5 pt-2 bg-background/90 backdrop-blur-md sticky top-0 z-30 border-b border-border/40 min-h-[68px]"
+        style={{ paddingTop: "max(env(safe-area-inset-top), 28px)" }}
       >
         <div className="flex items-center gap-3">
           {showBack ? (
