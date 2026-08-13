@@ -27,7 +27,7 @@ Si vous voulez travailler sur votre projet depuis un nouveau PC :
 1. **Sur le PC actuel** : Sauvegardez tout avec : 
    `git add . ; git commit -m "Sync avant changement PC" ; git push`
 2. **Sur le nouveau PC** : Téléchargez le projet :
-   `git clone https://github.com/Pytt007/vanaeroport.git`
+   `git clone https://github.com/Pytt007/van-aeroport.git`
 3. **Crucial** : Copiez le fichier `.env` du PC 1 vers le PC 2 (Git ne le prend pas pour des raisons de sécurité).
 4. **Installez** : `npm install` puis `npm run dev`.
 
@@ -43,7 +43,7 @@ Si vous voulez travailler sur votre projet depuis un nouveau PC :
 
 Votre application est liée à votre dépôt GitHub sur Vercel. 
 
-- **Lien du code** : [https://github.com/Pytt007/vanaeroport](https://github.com/Pytt007/vanaeroport)
+- **Lien du code** : [https://github.com/Pytt007/van-aeroport](https://github.com/Pytt007/van-aeroport)
 - **Mise à jour** : Automatique à chaque `git push`.
 - **Variables d'environnement** : Assurez-vous que `VITE_SUPABASE_URL` et `VITE_SUPABASE_PUBLISHABLE_KEY` sont configurées dans les réglages de votre projet sur Vercel.
 
