@@ -58,7 +58,7 @@ const SplashScreen = ({ onFinish }: SplashScreenProps) => {
                         <img
                             src={logoSrc}
                             alt="AÉROPORT Logo"
-                            className="w-[280px] h-auto drop-shadow-[0_0_20px_rgba(246,177,4,0.3)]"
+                            className="w-[360px] max-w-[85vw] h-auto drop-shadow-[0_0_25px_rgba(246,177,4,0.35)]"
                         />
                     </motion.div>
                 </div>
