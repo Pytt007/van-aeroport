@@ -70,7 +70,7 @@ const PWAInstallPrompt = () => {
                         </div>
                         <div>
                             <h3 className="font-heading font-bold text-lg text-foreground leading-tight">
-                                Installer Vanaeroport
+                                Installer Bip Bip ! Aéroport
                             </h3>
                             <p className="text-sm text-muted-foreground font-body font-medium">
                                 Pour un accès rapide

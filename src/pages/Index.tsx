@@ -152,7 +152,7 @@ const Index = () => {
         title={
           <img
             src={theme === "dark" ? Logo : LogoLight}
-            alt="Vanaeroport"
+            alt="Bip Bip ! Aéroport"
             className="h-16 w-auto object-contain"
           />
         }

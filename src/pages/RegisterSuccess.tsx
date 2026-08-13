@@ -57,7 +57,7 @@ const RegisterSuccess = () => {
 
 
                 <footer className="absolute bottom-8 text-sm text-muted-foreground/50 font-body">
-                    &copy; {new Date().getFullYear()} Vanaeroport. Tous droits réservés.
+                    &copy; {new Date().getFullYear()} Bip Bip ! Aéroport. Tous droits réservés.
                 </footer>
             </div>
         </MobileLayout>

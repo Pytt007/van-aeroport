@@ -35,7 +35,7 @@ export const generateReceiptPDF = async (receiptId: string, data: ReceiptData) =
 
     element.innerHTML = `
         <div style="background: #111; padding: 20px; text-align: center; border-radius: 12px 12px 0 0;">
-            <h1 style="margin: 0; color: #f59e0b; font-size: 24px; letter-spacing: 2px;">VANAEROPORT</h1>
+            <h1 style="margin: 0; color: #f59e0b; font-size: 24px; letter-spacing: 2px;">BIP BIP ! AÉROPORT</h1>
             <p style="margin: 5px 0 0; font-size: 10px; color: #aaa; text-transform: uppercase; letter-spacing: 1px;">Service de Transport Premium</p>
         </div>
         
@@ -127,7 +127,7 @@ export const generateReceiptPDF = async (receiptId: string, data: ReceiptData) =
                 <p style="font-size: 10px; color: #999; font-style: italic; margin-bottom: 5px;">
                     ${data.deposit >= data.total ? 'Ce document est une facture finale certifiant le paiement intégral.' : 'Ce reçu fait office de confirmation officielle d\'acompte.'}
                 </p>
-                <p style="font-size: 9px; color: #bbb; text-transform: uppercase; font-weight: bold;">Vanaeroport Abidjan - Côte d'Ivoire</p>
+                <p style="font-size: 9px; color: #bbb; text-transform: uppercase; font-weight: bold;">Bip Bip ! Aéroport Abidjan - Côte d'Ivoire</p>
             </div>
         </div>
     `;

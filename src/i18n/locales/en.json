@@ -23,7 +23,7 @@
     },
     "nav": {
         "home": "Home",
-        "explorer": "Van Aéroport",
+        "explorer": "Bip Bip ! Aéroport",
         "rides": "Rides",
         "profile": "Profile",
         "favoris": "Favorites",
@@ -46,7 +46,7 @@
         "ride_now_desc": "Get around quickly",
         "rentals": "Car Rentals",
         "rentals_desc": "Book a car by the hour",
-        "airport_van": "Airport Van",
+        "airport_van": "Bip Bip ! Aéroport",
         "airport_van_desc": "Shared or private shuttle"
     },
     "settings": {

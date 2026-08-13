@@ -54,7 +54,7 @@ const BoardingPass = ({ data }: BoardingPassProps) => {
                     <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center shrink-0">
                         <Car className="w-5 h-5 text-black" />
                     </div>
-                    <span className="font-heading font-extrabold text-[13px] italic uppercase leading-relaxed py-1">Vanaeroport</span>
+                    <span className="font-heading font-extrabold text-[13px] italic uppercase leading-relaxed py-1">Bip Bip ! Aéroport</span>
                 </div>
                 <div className="text-right shrink-0">
                     <p className="text-[9px] uppercase tracking-widest text-neutral-400">Référence</p>

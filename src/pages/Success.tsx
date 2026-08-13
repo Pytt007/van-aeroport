@@ -76,7 +76,7 @@ const Success = () => {
                 useCORS: true
             });
             const link = document.createElement("a");
-            link.download = `Vanaeroport_Ticket_${data?.id?.slice(0, 8) || 'Res'}.png`;
+            link.download = `BipBipAeroport_Ticket_${data?.id?.slice(0, 8) || 'Res'}.png`;
             link.href = canvas.toDataURL("image/png");
             link.click();
             toast.success("Carte d'embarquement enregistrée !");
